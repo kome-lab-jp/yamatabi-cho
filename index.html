@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>山旅帖</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500&family=Noto+Serif+JP:wght@600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+.plan-meta { font-size: 13px; color: var(--mist); margin: 4px 0 10px; }
+.plan-card-actions { display: flex; gap: 2px; padding-top: 12px; border-top: 1px solid var(--border); flex-wrap: wrap; }
+.header-actions { display: flex; gap: 10px; align-items: center; }
+.site-url-row { display: flex; gap: 8px; align-items: center; }
+.site-url-row input { flex: 1; }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div>
+    <span class="subtitle">YAMATABI-CHO</span>
+    <span class="logo">山旅帖</span>
+  </div>
+  <div class="header-actions">
+    <button class="btn btn-ghost" id="export-btn" style="color:rgba(255,255,255,0.7);">📤 エクスポート</button>
+    <button class="btn btn-ghost" id="import-btn" style="color:rgba(255,255,255,0.7);">📥 インポート</button>
+    <button class="btn btn-ghost" id="settings-btn" style="color:rgba(255,255,255,0.7);">⚙️ 設定</button>
+    <button class="btn btn-gold" id="new-btn">＋ 新しい計画書</button>
+  </div>
+</header>
+
+<main class="container page-content">
+  <div id="plan-list"></div>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- Settings Modal -->
+<div class="modal-overlay" id="settings-modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <h2 class="modal-title" id="settings-title">⚙️ 設定</h2>
+    <div class="form-group">
+      <label class="form-label" for="site-url-input">Cloudflare Pages の公開URL</label>
+      <div class="site-url-row">
+        <input class="form-input" id="site-url-input" type="url" placeholder="https://your-site.pages.dev">
+        <button class="btn btn-primary btn-sm" id="save-site-url">保存</button>
+      </div>
+      <p class="text-xs text-mist mt-8">計画書公開後のURLの生成に使用します。</p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" id="settings-close">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirm Modal -->
+<div class="modal-overlay" id="delete-modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="del-title">
+    <h2 class="modal-title" id="del-title">🗑 計画書を削除</h2>
+    <p style="font-size:14px;color:var(--mist);">「<span id="del-plan-name"></span>」を削除しますか？この操作は元に戻せません。</p>
+    <div class="modal-actions">
+      <button class="btn btn-outline" id="del-cancel">キャンセル</button>
+      <button class="btn" id="del-confirm" style="background:var(--red);color:#fff;border-color:var(--red);">削除する</button>
+    </div>
+  </div>
+</div>
+
+<!-- Import input (hidden) -->
+<input type="file" id="import-file" accept=".json" style="display:none">
+
+<script src="calculator.js"></script>
+<script src="template.js"></script>
+<script src="publisher.js"></script>
+<script>
+'use strict';
+
+const DB_KEY = 'yamatabi_plans';
+
+function loadPlans() {
+  try { return JSON.parse(localStorage.getItem(DB_KEY)) || []; }
+  catch { return []; }
+}
+
+function savePlans(plans) {
+  const json = JSON.stringify(plans);
+  if (json.length > 4.5 * 1024 * 1024) {
+    showToast('⚠️ データサイズが上限に近づいています。エクスポートしてバックアップを取ってください。', 'error');
+  }
+  localStorage.setItem(DB_KEY, json);
+}
+
+function showToast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  setTimeout(() => { t.className = 'toast'; }, 3000);
+}
+
+function openModal(id) {
+  document.getElementById(id).classList.add('show');
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('show');
+}
+
+function formatDate(iso) {
+  if (!iso) return '日付未設定';
+  const d = new Date(iso);
+  return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function renderList() {
+  const plans = loadPlans();
+  const container = document.getElementById('plan-list');
+
+  if (plans.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">🏔</div>
+        <div class="empty-state-title">計画書がまだありません</div>
+        <p class="empty-state-desc">「＋ 新しい計画書」から作成を始めましょう</p>
+        <button class="btn btn-primary" onclick="createNew()">＋ 新しい計画書を作る</button>
+      </div>`;
+    return;
+  }
+
+  const html = `<div class="plan-grid">${plans.map(p => planCard(p)).join('')}</div>`;
+  container.innerHTML = html;
+}
+
+function planCard(p) {
+  const title = p.data?.basic?.title || '無題の計画書';
+  const dateFrom = p.data?.basic?.dateFrom || '';
+  const dateTo   = p.data?.basic?.dateTo   || '';
+  const dateStr  = dateFrom
+    ? (dateTo && dateTo !== dateFrom ? `${formatDate(dateFrom)} 〜 ${formatDate(dateTo)}` : formatDate(dateFrom))
+    : '日付未設定';
+  const members = p.data?.cost?.members || '—';
+  const badge = p.status === 'published'
+    ? '<span class="badge badge-published">公開済</span>'
+    : '<span class="badge badge-draft">下書き</span>';
+  const publicUrl = p.publicUrl || '';
+
+  return `
+    <div class="plan-card" data-id="${p.id}">
+      <div class="plan-card-accent" style="background:${p.status==='published'?'var(--forest2)':'var(--gold)'}"></div>
+      <div class="plan-card-body">
+        <div class="flex-center between">
+          <h2 style="font-size:15px;font-weight:500;">${escHtml(title)}</h2>
+          ${badge}
+        </div>
+        <p class="plan-meta">${escHtml(dateStr)} · ${escHtml(String(members))} 名</p>
+        <div class="plan-card-actions">
+          <button class="btn btn-ghost" onclick="editPlan('${p.id}')">✏️ 編集</button>
+          <button class="btn btn-ghost" onclick="duplicatePlan('${p.id}')">📋 複製</button>
+          ${publicUrl
+            ? `<button class="btn btn-ghost" onclick="copyUrl('${escHtml(publicUrl)}')">🔗 URLコピー</button>`
+            : ''}
+          <button class="btn btn-danger" onclick="confirmDelete('${p.id}', '${escHtml(title)}')">🗑</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+
+function createNew() {
+  const id = 'plan-' + Date.now();
+  const plans = loadPlans();
+  plans.unshift({
+    id,
+    status: 'draft',
+    publicUrl: '',
+    data: { basic:{}, move:{}, food:{}, stay:{}, onsen:{}, gourmet:{}, cost:{}, reg:{}, safety:{} },
+    updatedAt: new Date().toISOString()
+  });
+  savePlans(plans);
+  location.href = `editor.html?id=${id}`;
+}
+
+function editPlan(id) {
+  location.href = `editor.html?id=${id}`;
+}
+
+function duplicatePlan(id) {
+  const plans = loadPlans();
+  const src = plans.find(p => p.id === id);
+  if (!src) return;
+  const newId = 'plan-' + Date.now();
+  const copy = JSON.parse(JSON.stringify(src));
+  copy.id = newId;
+  copy.status = 'draft';
+  copy.publicUrl = '';
+  copy.updatedAt = new Date().toISOString();
+  if (copy.data?.basic?.title) {
+    copy.data.basic.title = copy.data.basic.title + '（コピー）';
+  }
+  plans.unshift(copy);
+  savePlans(plans);
+  renderList();
+  showToast('計画書を複製しました');
+}
+
+async function copyUrl(url) {
+  const ok = await Publisher.copyToClipboard(url);
+  showToast(ok ? '🔗 URLをコピーしました' : 'コピーに失敗しました。URLを手動でコピーしてください。', ok ? 'success' : 'error');
+}
+
+let deleteTargetId = null;
+
+function confirmDelete(id, name) {
+  deleteTargetId = id;
+  document.getElementById('del-plan-name').textContent = name;
+  openModal('delete-modal');
+}
+
+document.getElementById('del-confirm').addEventListener('click', () => {
+  if (!deleteTargetId) return;
+  const plans = loadPlans().filter(p => p.id !== deleteTargetId);
+  savePlans(plans);
+  deleteTargetId = null;
+  closeModal('delete-modal');
+  renderList();
+  showToast('削除しました');
+});
+
+document.getElementById('del-cancel').addEventListener('click', () => closeModal('delete-modal'));
+document.getElementById('delete-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('delete-modal')) closeModal('delete-modal');
+});
+
+document.getElementById('new-btn').addEventListener('click', createNew);
+
+// Export
+document.getElementById('export-btn').addEventListener('click', () => {
+  const data = localStorage.getItem(DB_KEY) || '[]';
+  const blob = new Blob([data], { type: 'application/json;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `yamatabi-backup-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast('📤 エクスポートしました');
+});
+
+// Import
+document.getElementById('import-btn').addEventListener('click', () => {
+  document.getElementById('import-file').click();
+});
+
+document.getElementById('import-file').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const plans = JSON.parse(ev.target.result);
+      if (!Array.isArray(plans)) throw new Error('invalid');
+      savePlans(plans);
+      renderList();
+      showToast('📥 インポートしました');
+    } catch {
+      showToast('ファイルの形式が正しくありません', 'error');
+    }
+    e.target.value = '';
+  };
+  reader.readAsText(file);
+});
+
+// Settings
+document.getElementById('settings-btn').addEventListener('click', () => {
+  document.getElementById('site-url-input').value = Publisher.getSiteUrl();
+  openModal('settings-modal');
+});
+document.getElementById('settings-close').addEventListener('click', () => closeModal('settings-modal'));
+document.getElementById('settings-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('settings-modal')) closeModal('settings-modal');
+});
+document.getElementById('save-site-url').addEventListener('click', () => {
+  const url = document.getElementById('site-url-input').value.trim();
+  Publisher.setSiteUrl(url);
+  showToast('設定を保存しました');
+  closeModal('settings-modal');
+});
+
+window.YAMATABI_SITE_URL = Publisher.getSiteUrl();
+renderList();
+</script>
+</body>
+</html>

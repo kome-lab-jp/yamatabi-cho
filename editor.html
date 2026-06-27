@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>編集 — 山旅帖</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500&family=Noto+Serif+JP:wght@600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+body { overflow: hidden; }
+@media (max-width: 900px) { body { overflow: auto; } }
+
+.editor-section-header { padding: 12px 16px; font-size: 13px; color: var(--mist); font-weight: 500; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); background: var(--cream); }
+.accordion-ai-row { display: flex; gap: 8px; align-items: flex-start; margin-top: 10px; }
+.accordion-ai-row .btn { white-space: nowrap; flex-shrink: 0; }
+.cost-auto-row { display: flex; justify-content: space-between; align-items: center; background: var(--cream); border-radius: 6px; padding: 8px 12px; font-size: 13px; color: var(--mist); margin-top: 4px; }
+.cost-auto-val { font-weight: 500; color: var(--ink); }
+.calc-result { background: var(--forest); color: #fff; border-radius: 8px; padding: 14px 16px; margin-top: 12px; display: flex; justify-content: space-between; align-items: center; }
+.calc-result-label { font-size: 12px; color: rgba(255,255,255,0.7); }
+.calc-result-value { font-size: 22px; font-weight: 500; }
+.preview-label { font-size: 11px; color: var(--mist); letter-spacing: 0.08em; padding: 10px 20px 0; }
+</style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div class="editor-topbar">
+  <a href="index.html" class="btn btn-ghost btn-sm" style="color:rgba(255,255,255,0.7);">← 一覧</a>
+  <div class="editor-topbar-title" id="topbar-title">新しい計画書</div>
+  <div style="display:flex;gap:8px;flex-shrink:0;">
+    <button class="btn btn-outline btn-sm" id="save-btn" style="color:#fff;border-color:rgba(255,255,255,0.4);">💾 保存</button>
+    <button class="btn btn-gold btn-sm" id="publish-btn">🚀 公開する</button>
+  </div>
+</div>
+
+<!-- Mobile tab bar (shown on mobile via CSS) -->
+<div class="editor-tab-bar" id="tab-bar">
+  <div class="editor-tab active" data-tab="edit">✏️ 入力</div>
+  <div class="editor-tab" data-tab="preview">👁 プレビュー</div>
+</div>
+
+<!-- Editor wrap -->
+<div class="editor-wrap" id="editor-wrap">
+
+  <!-- Left: Form -->
+  <div class="editor-left" id="panel-edit">
+    <div class="editor-section-header">SECTIONS</div>
+
+    <!-- 1. 山行基本情報 -->
+    <div class="accordion-item" id="acc-basic">
+      <div class="accordion-header open" onclick="toggleAcc(this)">
+        <span><span aria-hidden="true">🏔</span> 山行基本情報</span>
+        <span class="accordion-chevron">▾</span>
+      </div>
+      <div class="accordion-body open">
+        <div class="form-group">
+          <label class="form-label" for="basic-title">山行名</label>
+          <input class="form-input" id="basic-title" name="basic.title" placeholder="例：雨飾山🍁紅葉登山">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="basic-dateFrom">出発日</label>
+            <input class="form-input" id="basic-dateFrom" name="basic.dateFrom" type="date">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="basic-dateTo">帰着日</label>
+            <input class="form-input" id="basic-dateTo" name="basic.dateTo" type="date">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="basic-yamapUrl">YAMAPコースURL</label>
+          <input class="form-input" id="basic-yamapUrl" name="basic.yamapUrl" type="url" placeholder="https://yamap.com/plans/...">
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. 集合・移動 -->
+    <div class="accordion-item" id="acc-move">
+      <div class="accordion-header" onclick="toggleAcc(this)">
+        <span><span aria-hidden="true">🚗</span> 集合・移動</span>
+        <span class="accordion-chevron">▾</span>
+      </div>
+      <div class="accordion-body">
+        <div class="form-group">
+          <label class="form-label" for="move-datetime">集合日時</label>
+          <input class="form-input" id="move-datetime" name="move.datetime" placeholder="例：10/18(土) 武蔵境駅南口 7時集合">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="move-place">集合場所</label>
+          <input class="form-input" id="move-place" name="move.place" placeholder="例：武蔵境駅南口">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="move-car">車両担当</label>
+          <input class="form-input" id="move-car" name="move.car" placeholder="例：🚘 SATOU Car">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="move-note">その他メモ</label>
+          <textarea class="form-textarea" id="move-note" name="move.note" placeholder="駐車場情報など"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. 食事計画 -->
+    <div class="accordion-item" id="acc-food">
+      <div class="accordion-header" onclick="toggleAcc(this)">
+        <span><span aria-hidden="true">🍳</span> 食事計画</span>
+        <span class="accordion-chevron">▾</span>
+      </div>
+      <div class="accordion-body">
+        <div class="form-group">
+          <label class="form-label" for="food-day1lunch">1日目 昼</label>
+          <input class="form-input" id="food-day1lunch" name="food.day1lunch" placeholder="例：高速SA">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="food-day1dinner">1日目 夜</label>
+          <input class="form-input" id="food-day1dinner" name="food.day1dinner" placeholder="例：キャンプ飯">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="food-shopName">食材調達スポット</label>
+          <input class="form-input" id="food-shopName" name="food.shopName" placeholder="例：デリシア 白馬店">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="food-shopUrl">調達スポット URL</label>
+          <input class="form-input" id="food-shopUrl" name="food.shopUrl" type="url" placeholder="https://...">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="food-day2breakfast">2日目 朝</label>
+          <input class="form-input" id="food-day2breakfast" name="food.day2breakfast" placeholder="例：山頂朝食">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="food-day2lunch">2日目 昼</label>
+          <input class="form-input" id="food-day2lunch" name="food.day2lunch" placeholder="例：下山グルメ">
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. 宿泊 -->
+    <div class="accordion-item" id="acc-stay">
+      <div class="accordion-header" onclick="toggleAcc(this)">
+        <span><span aria-hidden="true">🏕</span> 宿泊</span>
+        <span class="accordion-chevron">▾</span>
+      </div>
+      <div class="accordion-body">
+        <div class="form-group">
+          <label class="form-label" for="stay-name">宿泊施設名</label>
+          <input class="form-input" id="stay-name" name="stay.name" placeholder="例：雨飾高原キャンプ場">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="stay-url">URL</label>
+          <input class="form-input" id="stay-url" name="stay.url" type="url" placeholder="https://...">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="stay-note">設備・メモ</label>
+          <textarea class="form-textarea" id="stay-note" name="stay.note" placeholder="例：シャワー室あり 300円/15分"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. 温泉 -->
+    <div class="accordion-item" id="acc-onsen">
+      <div class="accordion-header" onclick="toggleAcc(this)">
+        <span><span aria-hidden="true">♨️</span> 温泉</span>
+        <span class="accordion-chevron">▾</span>
+      </div>
+      <div class="accordion-body">
+        <div class="accordion-ai-row">
+          <div style="flex:1">
+            <p class="text-xs text-mist" style="margin-bottom:8px;">AIで下山場所周辺の温泉を検索できます（入湯料1,500円以下・車30分以内・高評価）</p>
+            <button class="btn btn-primary btn-sm" onclick="aiSearchOnsen()">✨ AIで温泉を探す</button>
+          </div>
+        </div>
+        <div class="form-group mt-12">
+          <label class="form-label" for="onsen-name">温泉名</label>
+          <input class="form-input" id="onsen-name" name="onsen.name" placeholder="例：雨飾高原露天風呂">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="onsen-url">URL</label>
+          <input class="form-input" id="onsen-url" name="onsen.url" type="url" placeholder="https://...">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="onsen-fee">料金</label>
+          <input class="form-input" id="onsen-fee" name="onsen.fee" placeholder="例：寸志（清掃協力金）">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="onsen-access">下山場所からのアクセス</label>
+          <input class="form-input" id="onsen-access" name="onsen.access" placeholder="例：車で5分">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="onsen-note">メモ</label>
+          <textarea class="form-textarea" id="onsen-note" name="onsen.note"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. 下山後グルメ -->
+    <div class="accordion-item" id="acc-gourmet">
+      <div class="accordion-header" onclick="toggleAcc(this)">
+        <span><span aria-hidden="true">🍖</span> 下山後グルメ</span>
+        <span class="accordion-chevron">▾</span>
+      </div>
+      <div class="accordion-body">
+        <div class="accordion-ai-row">
+          <div style="flex:1">
+            <p class="text-xs text-mist" style="margin-bottom:8px;">AIで下山場所周辺のご当地グルメ（車30分以内・人気店）を検索できます</p>
+            <button class="btn btn-primary btn-sm" onclick="aiSearchGourmet()">✨ AIでグルメを探す</button>
+          </div>
+        </div>
+        <div class="form-group mt-12">
+          <label class="form-label" for="gourmet-name">お店・グルメ名</label>
+          <input class="form-input" id="gourmet-name" name="gourmet.name" placeholder="例：小谷温泉 山田旅館">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="gourmet-url">URL</label>
+          <input class="form-input" id="gourmet-url" name="gourmet.url" type="url" placeholder="https://...">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="gourmet-note">メモ</label>
+          <textarea class="form-textarea" id="gourmet-note" name="gourmet.note" placeholder="例：検討中"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7. 共通経費 -->
+    <div class="accordion-item" id="acc-cost">
+      <div class="accordion-header" onclick="toggleAcc(this)">
+        <span><span aria-hidden="true">💰</span> 共通経費計算</span>
+        <span class="accordion-chevron">▾</span>
+      </div>
+      <div class="accordion-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="cost-members">参加人数</label>
+            <input class="form-input" id="cost-members" name="cost.members" type="number" min="1" placeholder="4">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="cost-distance">走行距離・往復 (km)</label>
+            <input class="form-input" id="cost-distance" name="cost.distance" type="number" min="0" placeholder="566">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="cost-costPerKm">車両消耗コスト (円/km) <span style="font-weight:400;color:var(--mist);">※減価償却の目安</span></label>
+            <input class="form-input" id="cost-costPerKm" name="cost.costPerKm" type="number" min="0" value="10">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="cost-highway">高速代・往復 (円)</label>
+            <input class="form-input" id="cost-highway" name="cost.highway" type="number" min="0" placeholder="7880">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="cost-fuelPrice">燃料単価 (円/L)</label>
+            <input class="form-input" id="cost-fuelPrice" name="cost.fuelPrice" type="number" min="0" value="170">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="cost-fuelEff">燃費 (km/L)</label>
+            <input class="form-input" id="cost-fuelEff" name="cost.fuelEff" type="number" min="1" value="15">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="cost-parking">駐車場代 (円)</label>
+            <input class="form-input" id="cost-parking" name="cost.parking" type="number" min="0" value="0">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="cost-tentPerPerson">テント場代 (円/人)</label>
+            <input class="form-input" id="cost-tentPerPerson" name="cost.tentPerPerson" type="number" min="0" placeholder="1760">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="cost-other">その他 (円)</label>
+          <input class="form-input" id="cost-other" name="cost.other" type="number" min="0" value="0">
+        </div>
+
+        <!-- Auto-calc display -->
+        <div class="cost-auto-row">
+          <span>車両消耗コスト</span>
+          <span class="cost-auto-val" id="calc-carCost">—</span>
+        </div>
+        <div class="cost-auto-row">
+          <span>燃料代</span>
+          <span class="cost-auto-val" id="calc-fuelCost">—</span>
+        </div>
+        <div class="cost-auto-row">
+          <span>テント場代（合計）</span>
+          <span class="cost-auto-val" id="calc-tentTotal">—</span>
+        </div>
+
+        <div class="calc-result">
+          <div>
+            <div class="calc-result-label">合計</div>
+            <div class="calc-result-value" id="calc-total">¥0</div>
+          </div>
+          <div style="text-align:right">
+            <div class="calc-result-label">1人あたり</div>
+            <div class="calc-result-value" id="calc-per">¥0</div>
+          </div>
+        </div>
+
+        <div class="form-group mt-12">
+          <label class="form-label" for="cost-payment">精算方法</label>
+          <input class="form-input" id="cost-payment" name="cost.payment" placeholder="例：事後の現金精算 or Pay系送金">
+        </div>
+      </div>
+    </div>
+
+    <!-- 8. 登山届・保険 -->
+    <div class="accordion-item" id="acc-reg">
+      <div class="accordion-header" onclick="toggleAcc(this)">
+        <span><span aria-hidden="true">📝</span> 登山届・保険</span>
+        <span class="accordion-chevron">▾</span>
+      </div>
+      <div class="accordion-body">
+        <div class="form-group">
+          <label class="form-label" for="reg-note">登山届の案内</label>
+          <textarea class="form-textarea" id="reg-note" name="reg.note" placeholder="例：YAMAPユーザー：リーダーが登山届を提出後、各自で個人情報を登録してください。" style="min-height:100px;"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="reg-yamap">YAMAPリンク</label>
+          <input class="form-input" id="reg-yamap" name="reg.yamap" type="url" placeholder="https://yamap.com/...">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="reg-insurance">保険の案内</label>
+          <textarea class="form-textarea" id="reg-insurance" name="reg.insurance" placeholder="例：各自で判断準備ください。参考：YAMAPアウトドア保険"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- 9. 安全ルール -->
+    <div class="accordion-item" id="acc-safety">
+      <div class="accordion-header" onclick="toggleAcc(this)">
+        <span><span aria-hidden="true">🐻</span> 安全ルール（クマ対応）</span>
+        <span class="accordion-chevron">▾</span>
+      </div>
+      <div class="accordion-body">
+        <div class="form-group">
+          <label class="form-label" for="safety-initial">初動ルール（1行1項目）</label>
+          <textarea class="form-textarea" id="safety-initial" name="safety.initial" placeholder="①発見者は絶対に声を出さずに「ハンドサイン」で仲間に周知すること&#10;②声を出さないこと（騒がないこと）&#10;③背中を見せないこと&#10;④走って逃げないこと" style="min-height:100px;"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="safety-response">対応ルール（1行1項目）</label>
+          <textarea class="form-textarea" id="safety-response" name="safety.response" placeholder="⑤リーダーのハンドサイン又は声に沿って行動すること&#10;⑥ゆっくりと後退&#10;⑦反撃体制を取れ&#10;⑧防御態勢を取れ" style="min-height:100px;"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div style="height:32px;"></div>
+  </div>
+
+  <!-- Right: Preview -->
+  <div class="editor-right" id="panel-preview">
+    <div class="preview-toggle">
+      <span style="font-size:12px;color:var(--mist);flex:1;">プレビュー</span>
+      <button class="preview-toggle-btn active" id="prev-desktop" onclick="setPreview('desktop')">🖥 デスクトップ</button>
+      <button class="preview-toggle-btn" id="prev-mobile" onclick="setPreview('mobile')">📱 スマホ</button>
+    </div>
+    <div class="preview-frame">
+      <div class="preview-inner" id="preview-inner">
+        <div id="preview-content"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="calculator.js"></script>
+<script src="template.js"></script>
+<script src="publisher.js"></script>
+<script>
+'use strict';
+
+const DB_KEY = 'yamatabi_plans';
+const params = new URLSearchParams(location.search);
+const planId = params.get('id');
+if (!planId) { location.replace('index.html'); }
+
+function loadPlans() {
+  try { return JSON.parse(localStorage.getItem(DB_KEY)) || []; }
+  catch { return []; }
+}
+function savePlansArr(plans) {
+  const json = JSON.stringify(plans);
+  if (json.length > 4.5 * 1024 * 1024) {
+    showToast('⚠️ データが上限に近づいています。ダッシュボードからエクスポートしてください。', 'error');
+  }
+  try {
+    localStorage.setItem(DB_KEY, json);
+  } catch (e) {
+    showToast('保存に失敗しました。ストレージ容量を確認してください。', 'error');
+  }
+}
+function loadPlan() {
+  return loadPlans().find(p => p.id === planId) || null;
+}
+
+function showToast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  setTimeout(() => { t.className = 'toast'; }, 3000);
+}
+
+// ── Form helpers ──
+function getFormData() {
+  const data = { basic:{}, move:{}, food:{}, stay:{}, onsen:{}, gourmet:{}, cost:{}, reg:{}, safety:{} };
+  document.querySelectorAll('[name]').forEach(el => {
+    const parts = el.name.split('.');
+    if (parts.length === 2) data[parts[0]][parts[1]] = el.value;
+  });
+  return data;
+}
+
+function setFormData(data) {
+  if (!data) return;
+  Object.entries(data).forEach(([section, fields]) => {
+    Object.entries(fields).forEach(([key, val]) => {
+      const el = document.querySelector(`[name="${section}.${key}"]`);
+      if (el) el.value = val || '';
+    });
+  });
+  updateCalc();
+}
+
+// ── Calculator live update ──
+const COST_FIELDS = ['cost-members','cost-distance','cost-costPerKm','cost-highway','cost-fuelPrice','cost-fuelEff','cost-parking','cost-tentPerPerson','cost-other'];
+COST_FIELDS.forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', updateCalc);
+});
+
+function getCostData() {
+  const get = id => document.getElementById(id)?.value || '';
+  return {
+    members: get('cost-members'), distance: get('cost-distance'),
+    costPerKm: get('cost-costPerKm'), highway: get('cost-highway'),
+    fuelPrice: get('cost-fuelPrice'), fuelEff: get('cost-fuelEff'),
+    parking: get('cost-parking'), tentPerPerson: get('cost-tentPerPerson'),
+    other: get('cost-other')
+  };
+}
+
+function fmt(n) { return '¥' + n.toLocaleString('ja-JP'); }
+
+function updateCalc() {
+  const c = Calculator.compute(getCostData());
+  document.getElementById('calc-carCost').textContent  = c.carCost  ? fmt(c.carCost)  : '—';
+  document.getElementById('calc-fuelCost').textContent = c.fuelCost ? fmt(c.fuelCost) : '—';
+  document.getElementById('calc-tentTotal').textContent= c.tentTotal? fmt(c.tentTotal): '—';
+  document.getElementById('calc-total').textContent    = fmt(c.total);
+  document.getElementById('calc-per').textContent      = fmt(c.perPerson);
+  updatePreview();
+}
+
+// ── Accordion ──
+function toggleAcc(header) {
+  const body = header.nextElementSibling;
+  const isOpen = header.classList.contains('open');
+  header.classList.toggle('open', !isOpen);
+  header.setAttribute('aria-expanded', String(!isOpen));
+  body.classList.toggle('open', !isOpen);
+}
+
+// ── Preview ──
+let previewMode = 'desktop';
+
+function setPreview(mode) {
+  previewMode = mode;
+  document.getElementById('prev-desktop').classList.toggle('active', mode === 'desktop');
+  document.getElementById('prev-mobile').classList.toggle('active', mode === 'mobile');
+  document.getElementById('preview-inner').classList.toggle('mobile-view', mode === 'mobile');
+  updatePreview();
+}
+
+function updatePreview() {
+  const plan = buildCurrentPlan();
+  const { html } = Template.generate(plan);
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  const body = doc.body.innerHTML;
+  document.getElementById('preview-content').innerHTML = body;
+  document.getElementById('topbar-title').textContent =
+    plan.data?.basic?.title || '新しい計画書';
+}
+
+function buildCurrentPlan() {
+  const base = loadPlan() || { id: planId, status: 'draft', publicUrl: '', updatedAt: new Date().toISOString() };
+  base.data = getFormData();
+  return base;
+}
+
+// ── Save ──
+function savePlan() {
+  const plans = loadPlans();
+  const idx = plans.findIndex(p => p.id === planId);
+  const plan = buildCurrentPlan();
+  plan.updatedAt = new Date().toISOString();
+  if (idx >= 0) plans[idx] = plan;
+  else plans.unshift(plan);
+  savePlansArr(plans);
+  showToast('💾 保存しました');
+}
+
+document.getElementById('save-btn').addEventListener('click', savePlan);
+
+// Auto-save on input (debounced)
+let saveTimer;
+document.querySelectorAll('.form-input, .form-textarea').forEach(el => {
+  el.addEventListener('input', () => {
+    updatePreview();
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(savePlan, 1500);
+  });
+});
+
+// ── Publish ──
+document.getElementById('publish-btn').addEventListener('click', () => {
+  savePlan();
+  const plan = buildCurrentPlan();
+  Publisher.showPublishModal(plan, (slug, publicUrl) => {
+    const plans = loadPlans();
+    const idx = plans.findIndex(p => p.id === planId);
+    if (idx >= 0) {
+      plans[idx].status = 'published';
+      plans[idx].publicUrl = publicUrl;
+      savePlansArr(plans);
+    }
+    showToast('📄 HTMLをダウンロードしました。plansフォルダに移動してpushしてください。');
+  });
+});
+
+// ── AI Search ──
+function getDescentPlace() {
+  return document.getElementById('move-place')?.value
+    || document.getElementById('basic-title')?.value
+    || '下山場所';
+}
+
+function aiSearchOnsen() {
+  const place = getDescentPlace();
+  const prompt = `${place}から車で30分以内にある温泉を探してください。条件：Googleマップのクチコミ評価が高い・入湯料が税込1,500円以下・アクセスしやすい。温泉名・住所・料金・Googleマップリンク・クチコミ評価・おすすめポイントをまとめてください。`;
+  window.open('https://claude.ai/new?q=' + encodeURIComponent(prompt), '_blank', 'noopener');
+}
+
+function aiSearchGourmet() {
+  const place = getDescentPlace();
+  const prompt = `${place}周辺のご当地グルメで人気の高いお店を3〜5件教えてください。条件：車で30分以内・地元で有名・Googleマップ評価が高い。店名・ジャンル・おすすめメニュー・住所・営業時間・Googleマップリンクをまとめてください。`;
+  window.open('https://claude.ai/new?q=' + encodeURIComponent(prompt), '_blank', 'noopener');
+}
+
+// ── Mobile tab switch ── (display controlled by CSS media query)
+function initMobileTabs() {}
+
+document.querySelectorAll('.editor-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.editor-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const showPreview = tab.dataset.tab === 'preview';
+    document.getElementById('editor-wrap').classList.toggle('show-preview', showPreview);
+    if (showPreview) updatePreview();
+  });
+});
+
+window.addEventListener('resize', initMobileTabs);
+
+// ── Init ──
+window.YAMATABI_SITE_URL = Publisher.getSiteUrl();
+
+const existing = loadPlan();
+if (existing) setFormData(existing.data);
+updatePreview();
+initMobileTabs();
+</script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p \"/Users/kamimurakazunori/Project/Mountain Climbing Plan Creation Project/.claude\")",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(gh auth *)"
+    ]
+  }
+}
