@@ -32,23 +32,49 @@ const Template = {
     return `${title}-${ts}`.toLowerCase();
   },
 
+  _fmtDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso + 'T00:00:00');
+    if (isNaN(d.getTime())) return iso;
+    const days = ['日','月','火','水','木','金','土'];
+    return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}(${days[d.getDay()]})`;
+  },
+
+  _fmtDatetime(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    const days = ['日','月','火','水','木','金','土'];
+    return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}(${days[d.getDay()]}) ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  },
+
+  foldable(text) {
+    if (!text) return '';
+    const rendered = this.nl2br(text);
+    if (text.length <= 100) return `<p>${rendered}</p>`;
+    const preview = this.esc([...text.replace(/\n+/g, ' ')].slice(0, 60).join(''));
+    return `<details class="fold-text"><summary>${preview}…</summary><p style="margin-top:6px;">${rendered}</p></details>`;
+  },
+
+  foldableList(text) {
+    if (!text) return '';
+    const items = text.split('\n').filter(l => l.trim());
+    if (!items.length) return '';
+    const listHtml = `<ul class="rule-list">${items.map(l => `<li>${this.esc(l.trim())}</li>`).join('')}</ul>`;
+    if (items.length <= 5) return listHtml;
+    const preview = this.esc(items[0]) + `（他${items.length - 1}項目）`;
+    return `<details class="fold-text"><summary>${preview}</summary>${listHtml}</details>`;
+  },
+
   costRows(calc, d) {
     const rows = [];
     if (calc.carCost)  rows.push(['車両消耗コスト', `¥${Calculator.format(calc.carCost)}`]);
     if (d.highway)     rows.push(['高速代（往復）', `¥${Calculator.format(Math.round(parseFloat(d.highway)||0))}`]);
     if (calc.fuelCost) rows.push(['燃料代', `¥${Calculator.format(calc.fuelCost)}`]);
     if (d.parking)     rows.push(['駐車場代', `¥${Calculator.format(Math.round(parseFloat(d.parking)||0))}`]);
-    if (calc.tentTotal)rows.push([`テント場代（${this.esc(d.members)}名）`, `¥${Calculator.format(calc.tentTotal)}`]);
     if (d.other)       rows.push(['その他', `¥${Calculator.format(Math.round(parseFloat(d.other)||0))}`]);
     return rows.map(([k,v]) => `
       <tr><td>${this.esc(k)}</td><td>${v}</td></tr>`).join('');
-  },
-
-  ruleList(text) {
-    if (!text) return '';
-    return text.split('\n').filter(l => l.trim()).map(l =>
-      `<li>${this.esc(l.trim())}</li>`
-    ).join('');
   },
 
   generate(plan, forPublish = false) {
@@ -71,18 +97,22 @@ const Template = {
 
     const sections = [];
 
-    if (bi.title || bi.yamapUrl) {
+    // 基本情報
+    if (bi.tripType || bi.routeMemo || bi.yamapUrl) {
       sections.push(`
         <div class="section-card">
           <div class="section-card-header accent-move">
-            <span aria-hidden="true">🏔</span> 山行基本情報
+            <span aria-hidden="true">🏔</span> 基本情報
           </div>
           <div class="section-card-body">
-            ${bi.yamapUrl ? `<p>登山コース・CT：${this.link(bi.yamapUrl, 'YAMAPで確認する')}</p>` : ''}
+            ${bi.tripType   ? `<p><strong>種別：</strong>${this.esc(bi.tripType)}</p>` : ''}
+            ${bi.routeMemo  ? this.foldable(bi.routeMemo) : ''}
+            ${bi.yamapUrl   ? `<p>登山コース・CT：${this.link(bi.yamapUrl, 'YAMAPで確認する')}</p>` : ''}
           </div>
         </div>`);
     }
 
+    // 集合・移動
     if (mv.place || mv.datetime || mv.car || mv.note) {
       sections.push(`
         <div class="section-card">
@@ -90,43 +120,71 @@ const Template = {
             <span aria-hidden="true">🚗</span> 集合・移動
           </div>
           <div class="section-card-body">
-            ${mv.datetime ? `<p><strong>集合日時：</strong>${this.esc(mv.datetime)}</p>` : ''}
+            ${mv.datetime ? `<p><strong>集合日時：</strong>${this.esc(this._fmtDatetime(mv.datetime))}</p>` : ''}
             ${mv.place    ? `<p><strong>集合場所：</strong>${this.esc(mv.place)}</p>` : ''}
             ${mv.car      ? `<p><span aria-hidden="true">🚘</span> ${this.esc(mv.car)}</p>` : ''}
-            ${mv.note     ? `<p>${this.nl2br(mv.note)}</p>` : ''}
+            ${mv.note     ? this.foldable(mv.note) : ''}
           </div>
         </div>`);
     }
 
-    if (fd.day1lunch || fd.day1dinner || fd.day2breakfast || fd.day2lunch || fd.shopUrl || fd.shopName) {
+    // 食事計画
+    const foodDays = fd.days || [];
+    let foodHtml = '';
+    if (foodDays.length > 0) {
+      foodHtml = foodDays.filter(Boolean).map((memo, i) => {
+        return `<div${i > 0 ? ' class="mt-12"' : ''}><p><strong>${i + 1}日目</strong></p>${this.foldable(memo)}</div>`;
+      }).join('');
+    } else {
+      // backward compat with old format
+      if (fd.day1lunch)     foodHtml += `<p><strong>1日目 昼：</strong>${this.esc(fd.day1lunch)}</p>`;
+      if (fd.day1dinner)    foodHtml += `<p><strong>1日目 夜：</strong>${this.esc(fd.day1dinner)}</p>`;
+      if (fd.shopName)      foodHtml += `<p><span aria-hidden="true">🛒</span> 食材調達：${fd.shopUrl ? this.link(fd.shopUrl, fd.shopName) : this.esc(fd.shopName)}</p>`;
+      if (fd.day2breakfast) foodHtml += `<p><strong>2日目 朝：</strong>${this.esc(fd.day2breakfast)}</p>`;
+      if (fd.day2lunch)     foodHtml += `<p><strong>2日目 昼：</strong>${this.esc(fd.day2lunch)}</p>`;
+    }
+    if (foodHtml.trim()) {
       sections.push(`
         <div class="section-card">
           <div class="section-card-header accent-food">
             <span aria-hidden="true">🍳</span> 食事計画
           </div>
           <div class="section-card-body">
-            ${fd.day1lunch    ? `<p><strong>1日目 昼：</strong>${this.esc(fd.day1lunch)}</p>` : ''}
-            ${fd.day1dinner   ? `<p><strong>1日目 夜：</strong>${this.esc(fd.day1dinner)}</p>` : ''}
-            ${fd.shopName     ? `<p><span aria-hidden="true">🛒</span> 食材調達：${fd.shopUrl ? this.link(fd.shopUrl, fd.shopName) : this.esc(fd.shopName)}</p>` : ''}
-            ${fd.day2breakfast? `<p><strong>2日目 朝：</strong>${this.esc(fd.day2breakfast)}</p>` : ''}
-            ${fd.day2lunch    ? `<p><strong>2日目 昼：</strong>${this.esc(fd.day2lunch)}</p>` : ''}
+            ${foodHtml}
           </div>
         </div>`);
     }
 
-    if (st.name || st.url || st.note) {
+    // 宿泊
+    const stayDays = st.days || [];
+    let stayHtml = '';
+    if (stayDays.length > 0) {
+      stayHtml = stayDays.map((day, i) => {
+        if (!day?.name && !day?.note) return '';
+        return `
+          ${i > 0 ? '<hr style="border:none;border-top:1px solid var(--border);margin:12px 0;">' : ''}
+          ${stayDays.length > 1 ? `<p><strong>${i + 1}泊目</strong></p>` : ''}
+          ${day.name ? `<p><strong>${day.url ? this.link(day.url, day.name) : this.esc(day.name)}</strong></p>` : ''}
+          ${day.note ? this.foldable(day.note) : ''}`;
+      }).join('');
+    } else {
+      // backward compat
+      if (st.name) stayHtml += `<p><strong>${st.url ? this.link(st.url, st.name) : this.esc(st.name)}</strong></p>`;
+      if (st.note) stayHtml += this.foldable(st.note);
+    }
+    if (stayHtml.trim()) {
       sections.push(`
         <div class="section-card">
           <div class="section-card-header accent-stay">
             <span aria-hidden="true">🏕</span> 宿泊
           </div>
           <div class="section-card-body">
-            ${st.name ? `<p><strong>${st.url ? this.link(st.url, st.name) : this.esc(st.name)}</strong></p>` : ''}
-            ${st.note ? `<p>${this.nl2br(st.note)}</p>` : ''}
+            ${stayHtml}
           </div>
         </div>`);
     }
 
+    // 温泉
     if (on.name || on.note) {
       sections.push(`
         <div class="section-card">
@@ -137,11 +195,13 @@ const Template = {
             ${on.name   ? `<p><strong>${on.url ? this.link(on.url, on.name) : this.esc(on.name)}</strong></p>` : ''}
             ${on.fee    ? `<p><span aria-hidden="true">💴</span> 料金：${this.esc(on.fee)}</p>` : ''}
             ${on.access ? `<p><span aria-hidden="true">🚗</span> アクセス：${this.esc(on.access)}</p>` : ''}
-            ${on.note   ? `<p>${this.nl2br(on.note)}</p>` : ''}
+            ${on.mapUrl ? `<p><span aria-hidden="true">📍</span> ${this.link(on.mapUrl, 'Google Mapで見る')}</p>` : ''}
+            ${on.note   ? this.foldable(on.note) : ''}
           </div>
         </div>`);
     }
 
+    // 下山後グルメ
     if (gr.name || gr.note) {
       sections.push(`
         <div class="section-card">
@@ -149,12 +209,14 @@ const Template = {
             <span aria-hidden="true">🍖</span> 下山後グルメ
           </div>
           <div class="section-card-body">
-            ${gr.name ? `<p><strong>${gr.url ? this.link(gr.url, gr.name) : this.esc(gr.name)}</strong></p>` : ''}
-            ${gr.note ? `<p>${this.nl2br(gr.note)}</p>` : ''}
+            ${gr.name   ? `<p><strong>${gr.url ? this.link(gr.url, gr.name) : this.esc(gr.name)}</strong></p>` : ''}
+            ${gr.mapUrl ? `<p><span aria-hidden="true">📍</span> ${this.link(gr.mapUrl, 'Google Mapで見る')}</p>` : ''}
+            ${gr.note   ? this.foldable(gr.note) : ''}
           </div>
         </div>`);
     }
 
+    // 共通経費
     if (calc.total > 0 || co.members) {
       sections.push(`
         <div class="section-card">
@@ -184,6 +246,7 @@ const Template = {
         </div>`);
     }
 
+    // 登山届・保険
     if (rg.yamap || rg.insurance || rg.note) {
       sections.push(`
         <div class="section-card">
@@ -191,13 +254,14 @@ const Template = {
             <span aria-hidden="true">📝</span> 登山届・保険
           </div>
           <div class="section-card-body">
-            ${rg.note ? `<p>${this.nl2br(rg.note)}</p>` : ''}
-            ${rg.yamap ? `<p><span aria-hidden="true">🔗</span> YAMAP登山届：${this.link(rg.yamap, 'YAMAPで確認')}</p>` : ''}
-            ${rg.insurance ? `<p><span aria-hidden="true">🛡</span> 保険：${this.nl2br(rg.insurance)}</p>` : ''}
+            ${rg.note      ? this.foldable(rg.note) : ''}
+            ${rg.yamap     ? `<p><span aria-hidden="true">🔗</span> YAMAP登山届：${this.link(rg.yamap, 'YAMAPで確認')}</p>` : ''}
+            ${rg.insurance ? `<p><span aria-hidden="true">🛡</span> 保険：</p>${this.foldable(rg.insurance)}` : ''}
           </div>
         </div>`);
     }
 
+    // 安全ルール
     if (sf.initial || sf.response) {
       sections.push(`
         <div class="section-card">
@@ -205,21 +269,17 @@ const Template = {
             <span aria-hidden="true">🐻</span> クマ遭遇時の対応ルール
           </div>
           <div class="section-card-body">
-            ${sf.initial ? `
-              <p><strong>[初動]</strong></p>
-              <ul class="rule-list">${this.ruleList(sf.initial)}</ul>` : ''}
-            ${sf.response ? `
-              <p class="mt-12"><strong>[対応]</strong></p>
-              <ul class="rule-list">${this.ruleList(sf.response)}</ul>` : ''}
+            ${sf.initial  ? `<p><strong>[初動]</strong></p>${this.foldableList(sf.initial)}` : ''}
+            ${sf.response ? `<p class="mt-12"><strong>[対応]</strong></p>${this.foldableList(sf.response)}` : ''}
           </div>
         </div>`);
     }
 
-    const title = this.esc(bi.title || '登山計画書');
+    const title   = this.esc(bi.title || '登山計画書');
     const dateStr = bi.dateFrom
       ? (bi.dateTo && bi.dateTo !== bi.dateFrom
-          ? `${this.esc(bi.dateFrom)} 〜 ${this.esc(bi.dateTo)}`
-          : this.esc(bi.dateFrom))
+          ? `${this.esc(this._fmtDate(bi.dateFrom))} 〜 ${this.esc(this._fmtDate(bi.dateTo))}`
+          : this.esc(this._fmtDate(bi.dateFrom)))
       : '';
 
     return { html: this._wrap(title, dateStr, sections.join('\n'), slug), slug, publicUrl };
@@ -265,6 +325,11 @@ a{color:var(--forest2);word-break:break-all;}
 .cost-total-value{font-size:15px;font-weight:500;}
 .rule-list{list-style:none;padding:0;}
 .rule-list li{padding:6px 0 6px 8px;font-size:14px;border-bottom:1px solid #F5F0EA;}
+.fold-text>summary{cursor:pointer;color:var(--forest2);list-style:none;padding:4px 0;font-size:14px;display:flex;align-items:baseline;gap:4px;}
+.fold-text>summary::-webkit-details-marker{display:none;}
+.fold-text>summary::after{content:"▼ 続きを読む";font-size:11px;white-space:nowrap;}
+.fold-text[open]>summary::after{content:"▲ 閉じる";}
+.fold-text[open]>summary{margin-bottom:6px;}
 .mt-12{margin-top:12px;}.text-sm{font-size:13px;}
 .app-footer{text-align:center;padding:24px;font-size:12px;color:var(--mist);border-top:1px solid var(--border);margin-top:24px;}
 @media(max-width:768px){.hero-title{font-size:22px;}.cost-summary{flex-direction:column;gap:10px;align-items:flex-start;}.cost-per-label{text-align:left;}.published-layout{padding:16px 12px 40px;}}
