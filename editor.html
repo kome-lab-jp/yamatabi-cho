@@ -61,6 +61,10 @@ body { overflow: hidden; }
           <label class="form-label" for="basic-title">山行名</label>
           <input class="form-input" id="basic-title" name="basic.title" placeholder="例：雨飾山🍁紅葉登山">
         </div>
+        <div class="form-group">
+          <label class="form-label" for="basic-purpose">目的</label>
+          <input class="form-input" id="basic-purpose" name="basic.purpose" placeholder="例：体力強化・紅葉を楽しむ">
+        </div>
         <div class="form-row">
           <div class="form-group">
             <label class="form-label" for="basic-dateFrom">出発日</label>
@@ -104,6 +108,16 @@ body { overflow: hidden; }
           <datalist id="dl-place"></datalist>
         </div>
         <div class="form-group">
+          <label class="form-label" for="move-destination">行き先（駐車場/最寄り駅など）</label>
+          <input class="form-input" id="move-destination" name="move.destination" placeholder="例：猿倉駐車場">
+        </div>
+        <div class="accordion-ai-row">
+          <div style="flex:1">
+            <p class="text-xs text-mist" style="margin-bottom:8px;">行き先の駐車場情報（台数・料金・満車予測等）を調べるプロンプトを生成します</p>
+            <button class="btn btn-primary btn-sm" id="ai-parking-btn" onclick="aiSearchParking()">✨ 駐車場情報を調べる</button>
+          </div>
+        </div>
+        <div class="form-group">
           <label class="form-label" for="move-car">車両</label>
           <input class="form-input" id="move-car" list="dl-car" name="move.car" placeholder="選択または入力">
           <datalist id="dl-car"></datalist>
@@ -134,15 +148,29 @@ body { overflow: hidden; }
         <span class="accordion-chevron">▾</span>
       </div>
       <div class="accordion-body">
+        <div class="accordion-ai-row" style="margin-bottom:16px;">
+          <div style="flex:1">
+            <p class="text-xs text-mist" style="margin-bottom:8px;">宿泊形態を選択して、施設情報を調べるプロンプトを生成します</p>
+            <div style="display:flex;gap:16px;margin-bottom:10px;">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+                <input type="radio" name="stay.type" id="stay-type-hut" value="hut" onchange="onStayTypeChange()"> 小屋泊
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+                <input type="radio" name="stay.type" id="stay-type-tent" value="tent" onchange="onStayTypeChange()"> テント泊
+              </label>
+            </div>
+            <button class="btn btn-primary btn-sm" id="ai-stay-btn" onclick="aiSearchStay()" disabled>✨ 宿泊施設情報を調べる</button>
+          </div>
+        </div>
         <div id="stay-days-container"></div>
         <button type="button" class="btn btn-outline btn-sm add-day-btn" onclick="addStayDay()">＋ 翌日を追加</button>
       </div>
     </div>
 
-    <!-- 5. 温泉 -->
+    <!-- 5. 下山後の温泉 -->
     <div class="accordion-item" id="acc-onsen">
       <div class="accordion-header" onclick="toggleAcc(this)">
-        <span><span aria-hidden="true">♨️</span> 温泉</span>
+        <span><span aria-hidden="true">♨️</span> 下山後の温泉</span>
         <span class="accordion-chevron">▾</span>
       </div>
       <div class="accordion-body">
@@ -260,11 +288,17 @@ body { overflow: hidden; }
         </div>
 
         <div class="cost-auto-row">
-          <span>車両消耗コスト</span>
+          <div>
+            <div>車両消耗コスト</div>
+            <div style="font-size:11px;color:var(--mist);margin-top:2px;">走行距離(km) × 消耗コスト(円/km)</div>
+          </div>
           <span class="cost-auto-val" id="calc-carCost">—</span>
         </div>
         <div class="cost-auto-row">
-          <span>燃料代</span>
+          <div>
+            <div>燃料代</div>
+            <div style="font-size:11px;color:var(--mist);margin-top:2px;">(走行距離 ÷ 燃費) × 燃料単価</div>
+          </div>
           <span class="cost-auto-val" id="calc-fuelCost">—</span>
         </div>
 
@@ -529,6 +563,7 @@ function getFormData() {
   const data = { basic:{}, move:{}, food:{ days:[] }, stay:{ days:[] }, onsen:{}, gourmet:{}, cost:{}, reg:{}, safety:{} };
 
   document.querySelectorAll('[name]').forEach(el => {
+    if (el.type === 'radio' && !el.checked) return;
     const n = el.name;
     let m;
 
@@ -590,6 +625,13 @@ function setFormData(data) {
   }
   stayDays.forEach(day => addStayDay(day || {}));
 
+  // ラジオボタン（宿泊形態）の復元
+  const stayType = data?.stay?.type;
+  if (stayType) {
+    const radio = document.querySelector(`input[name="stay.type"][value="${stayType}"]`);
+    if (radio) { radio.checked = true; document.getElementById('ai-stay-btn').disabled = false; }
+  }
+
   updateCalc();
 }
 
@@ -618,7 +660,7 @@ function updateCalc() {
   document.getElementById('calc-fuelCost').textContent = c.fuelCost ? fmt(c.fuelCost) : '—';
   document.getElementById('calc-total').textContent    = fmt(c.total);
   document.getElementById('calc-per').textContent      = fmt(c.perPerson);
-  updatePreview();
+  // updatePreview は onInput 経由のdebounceで処理（二重呼び出し防止）
 }
 
 // ── Accordion ──
@@ -671,8 +713,15 @@ document.getElementById('save-btn').addEventListener('click', savePlan);
 
 // Auto-save on input (debounced)
 let saveTimer;
+let previewTimer;
+
+function schedulePreview() {
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(updatePreview, 250);
+}
+
 function onInput() {
-  updatePreview();
+  schedulePreview();
   clearTimeout(saveTimer);
   saveTimer = setTimeout(savePlan, 1500);
 }
@@ -725,24 +774,47 @@ document.getElementById('publish-btn').addEventListener('click', () => {
 // ── AI Search ──
 function aiSearchOnsen() {
   const yamapUrl = document.getElementById('basic-yamapUrl')?.value || '';
-  const title    = document.getElementById('basic-title')?.value    || '';
-  let prompt;
-  if (yamapUrl) {
-    prompt = `次のYAMAPコースURL（${yamapUrl}）の登山ルートを確認して、このコースで下山する地点（下山口）から車で30分以内にある温泉を探してください。条件：Googleマップのクチコミ評価が高い・入湯料が税込1,500円以下・アクセスしやすい。温泉名・住所・料金・GoogleマップURL・クチコミ評価・おすすめポイントをまとめてください。`;
-  } else {
-    prompt = `${title || '下山場所'}から車で30分以内にある温泉を探してください。条件：Googleマップのクチコミ評価が高い・入湯料が税込1,500円以下・アクセスしやすい。温泉名・住所・料金・GoogleマップURL・クチコミ評価・おすすめポイントをまとめてください。`;
-  }
+  const ref = yamapUrl ? `\n\n参考URL（YAMAPコース）：${yamapUrl}` : '';
+  const prompt = `あなたは日本登山ガイド協会所属ガイド相当の知識をもつ登山コンシェルジュです。まず「今回の下山地点（下山口）はどこですか？」と聞いてください。回答をもとに、その下山地点から車で30分以内にある温泉を探してください。条件：Googleマップのクチコミ評価が高い・入湯料が税込1,500円以下・アクセスしやすい。温泉名・住所・料金・GoogleマップURL・クチコミ評価・おすすめポイントをまとめてください。${ref}`;
   window.open('https://claude.ai/new?q=' + encodeURIComponent(prompt), '_blank', 'noopener');
 }
 
 function aiSearchGourmet() {
   const yamapUrl = document.getElementById('basic-yamapUrl')?.value || '';
-  const title    = document.getElementById('basic-title')?.value    || '';
+  const ref = yamapUrl ? `\n\n参考URL（YAMAPコース）：${yamapUrl}` : '';
+  const prompt = `あなたは日本登山ガイド協会所属ガイド相当の知識をもつ登山コンシェルジュです。まず「今回の下山地点（下山口）はどこですか？」と聞いてください。回答をもとに、その下山地点周辺のご当地グルメで人気の高いお店を3〜5件教えてください。条件：車で30分以内・地元で有名・Googleマップ評価が高い。店名・ジャンル・おすすめメニュー・住所・営業時間・GoogleマップURLをまとめてください。${ref}`;
+  window.open('https://claude.ai/new?q=' + encodeURIComponent(prompt), '_blank', 'noopener');
+}
+
+function aiSearchParking() {
+  const destination = document.getElementById('move-destination')?.value?.trim() || '';
+  if (!destination) {
+    showToast('「行き先」を入力してからボタンを押してください', 'info');
+    return;
+  }
+  const prompt = `あなたは日本登山ガイド協会所属ガイド相当の知識をもつ登山コンシェルジュです。「${destination}」について以下の情報を調べてください。\n\n・駐車台数：約◯台\n・駐車料金：◯円/◯h\n・集合場所から駐車場までの所要時間：約◯h（休憩含む）\n・満車予測：◯時頃〜◯時頃\n・満車時のBプラン（代替駐車場など）\n・他の登山者の投稿・口コミ情報`;
+  window.open('https://claude.ai/new?q=' + encodeURIComponent(prompt), '_blank', 'noopener');
+}
+
+function onStayTypeChange() {
+  const checked = document.querySelector('input[name="stay.type"]:checked');
+  document.getElementById('ai-stay-btn').disabled = !checked;
+  onInput();
+}
+
+function aiSearchStay() {
+  const checked = document.querySelector('input[name="stay.type"]:checked');
+  if (!checked) return;
+  const stayNames = Array.from(document.querySelectorAll('#stay-days-container [data-field="name"]'))
+    .map(el => el.value.trim()).filter(Boolean);
+  const target = stayNames.length
+    ? stayNames.map((n, i) => `${i + 1}泊目「${n}」`).join('・')
+    : '宿泊予定の施設';
   let prompt;
-  if (yamapUrl) {
-    prompt = `次のYAMAPコースURL（${yamapUrl}）の登山ルートを確認して、このコースで下山する地点（下山口）周辺のご当地グルメで人気の高いお店を3〜5件教えてください。条件：車で30分以内・地元で有名・Googleマップ評価が高い。店名・ジャンル・おすすめメニュー・住所・営業時間・GoogleマップURLをまとめてください。`;
+  if (checked.value === 'hut') {
+    prompt = `あなたは日本登山ガイド協会所属ガイド相当の知識をもつ登山コンシェルジュです。${target}（小屋泊）について以下の情報を調べてください。\n\n・小屋代：◯円/人泊\n・山荘入予定：◯時頃\n・部屋タイプ：相部屋など\n・女子用更衣室：有無\n・シュラフ・シーツの持参：必須／任意\n・翌日弁当の販売：有無\n・売店：有無\n・水場：有無\n・乾燥室：有無\n・入浴：有無\n・小屋のおすすめポイント（人気のグルメ・温泉など）`;
   } else {
-    prompt = `${title || '下山場所'}周辺のご当地グルメで人気の高いお店を3〜5件教えてください。条件：車で30分以内・地元で有名・Googleマップ評価が高い。店名・ジャンル・おすすめメニュー・住所・営業時間・GoogleマップURLをまとめてください。`;
+    prompt = `あなたは日本登山ガイド協会所属ガイド相当の知識をもつ登山コンシェルジュです。${target}（テント泊）について以下の情報を調べてください。\n\n・テント場代：◯円/人\n・テント張代：◯円/張\n・張数（収容可能数）：◯張\n・水場：有無\n・予約の要否：要予約／当日可\n・トイレ：有無・種類\n・ゴミの扱い：持ち帰り必須／処理可\n・テント場のおすすめポイントや注意事項`;
   }
   window.open('https://claude.ai/new?q=' + encodeURIComponent(prompt), '_blank', 'noopener');
 }

@@ -40,6 +40,14 @@ const Template = {
     return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}(${days[d.getDay()]})`;
   },
 
+  _fmtDateShort(iso) {
+    if (!iso) return '';
+    const d = new Date(iso + 'T00:00:00');
+    if (isNaN(d.getTime())) return iso;
+    const days = ['日','月','火','水','木','金','土'];
+    return `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}(${days[d.getDay()]})`;
+  },
+
   _fmtDatetime(iso) {
     if (!iso) return '';
     const d = new Date(iso);
@@ -98,7 +106,7 @@ const Template = {
     const sections = [];
 
     // 基本情報
-    if (bi.tripType || bi.routeMemo || bi.yamapUrl) {
+    if (bi.tripType || bi.purpose || bi.routeMemo || bi.yamapUrl) {
       sections.push(`
         <div class="section-card">
           <div class="section-card-header accent-move">
@@ -106,6 +114,7 @@ const Template = {
           </div>
           <div class="section-card-body">
             ${bi.tripType   ? `<p><strong>種別：</strong>${this.esc(bi.tripType)}</p>` : ''}
+            ${bi.purpose    ? `<p><strong>目的：</strong>${this.esc(bi.purpose)}</p>` : ''}
             ${bi.routeMemo  ? this.foldable(bi.routeMemo) : ''}
             ${bi.yamapUrl   ? `<p>登山コース・CT：${this.link(bi.yamapUrl, 'YAMAPで確認する')}</p>` : ''}
           </div>
@@ -113,17 +122,18 @@ const Template = {
     }
 
     // 集合・移動
-    if (mv.place || mv.datetime || mv.car || mv.note) {
+    if (mv.place || mv.destination || mv.datetime || mv.car || mv.note) {
       sections.push(`
         <div class="section-card">
           <div class="section-card-header accent-move">
             <span aria-hidden="true">🚗</span> 集合・移動
           </div>
           <div class="section-card-body">
-            ${mv.datetime ? `<p><strong>集合日時：</strong>${this.esc(this._fmtDatetime(mv.datetime))}</p>` : ''}
-            ${mv.place    ? `<p><strong>集合場所：</strong>${this.esc(mv.place)}</p>` : ''}
-            ${mv.car      ? `<p><span aria-hidden="true">🚘</span> ${this.esc(mv.car)}</p>` : ''}
-            ${mv.note     ? this.foldable(mv.note) : ''}
+            ${mv.datetime    ? `<p><strong>集合日時：</strong>${this.esc(this._fmtDatetime(mv.datetime))}</p>` : ''}
+            ${mv.place       ? `<p><strong>集合場所：</strong>${this.esc(mv.place)}</p>` : ''}
+            ${mv.destination ? `<p><strong>行き先：</strong>${this.esc(mv.destination)}</p>` : ''}
+            ${mv.car         ? `<p><span aria-hidden="true">🚘</span> ${this.esc(mv.car)}</p>` : ''}
+            ${mv.note        ? this.foldable(mv.note) : ''}
           </div>
         </div>`);
     }
@@ -184,12 +194,12 @@ const Template = {
         </div>`);
     }
 
-    // 温泉
+    // 下山後の温泉
     if (on.name || on.note) {
       sections.push(`
         <div class="section-card">
           <div class="section-card-header accent-onsen">
-            <span aria-hidden="true">♨️</span> 温泉
+            <span aria-hidden="true">♨️</span> 下山後の温泉
           </div>
           <div class="section-card-body">
             ${on.name   ? `<p><strong>${on.url ? this.link(on.url, on.name) : this.esc(on.name)}</strong></p>` : ''}
@@ -278,7 +288,7 @@ const Template = {
     const title   = this.esc(bi.title || '登山計画書');
     const dateStr = bi.dateFrom
       ? (bi.dateTo && bi.dateTo !== bi.dateFrom
-          ? `${this.esc(this._fmtDate(bi.dateFrom))} 〜 ${this.esc(this._fmtDate(bi.dateTo))}`
+          ? `${this.esc(this._fmtDate(bi.dateFrom))}〜${this.esc(this._fmtDateShort(bi.dateTo))}`
           : this.esc(this._fmtDate(bi.dateFrom)))
       : '';
 
@@ -306,7 +316,7 @@ a{color:var(--forest2);word-break:break-all;}
 .hero svg{position:absolute;bottom:0;left:0;width:100%;opacity:.1;pointer-events:none;}
 .hero-label{font-size:10px;letter-spacing:.2em;color:rgba(255,255,255,.5);margin-bottom:10px;}
 .hero-title{font-size:28px;font-weight:500;line-height:1.4;margin-bottom:10px;}
-.hero-date{font-size:14px;color:rgba(255,255,255,.75);}
+.hero-date{font-size:20px;color:rgba(255,255,255,.75);}
 .published-layout{max-width:800px;margin:0 auto;padding:28px 20px 48px;}
 .section-card{background:var(--card);border-radius:12px;border:1px solid var(--border);overflow:hidden;margin-bottom:16px;}
 .section-card-header{display:flex;align-items:center;gap:10px;padding:14px 20px;border-left:4px solid var(--forest2);font-size:15px;font-weight:500;color:var(--earth);}
