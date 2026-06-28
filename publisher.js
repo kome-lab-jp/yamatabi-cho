@@ -24,7 +24,7 @@ const Publisher = {
   },
 
   gitCommand(slug) {
-    return `git add plans/${slug}.html && git commit -m "山旅帖: 計画書を追加 (${slug})" && git push`;
+    return `git add plans/ && git commit -m "山旅帖: 計画書を追加 (${slug})" && git push`;
   },
 
   async copyToClipboard(text) {
@@ -55,10 +55,14 @@ const Publisher = {
 
         <ol style="font-size:14px;line-height:2;padding-left:20px;margin-bottom:16px;">
           <li>「HTMLをダウンロード」を押す</li>
-          <li>ダウンロードした <code>${Template.esc(slug)}.html</code> をこのプロジェクトの <code>plans/</code> フォルダに移動する</li>
-          <li>ターミナルで下のコマンドをコピーして実行する</li>
+          <li>ダウンロードした <code>${Template.esc(slug)}.html</code> をプロジェクトの <code>plans/</code> フォルダに移動する</li>
+          <li>ターミナルを開き、<strong>プロジェクトフォルダに移動</strong>してから下のコマンドを実行する</li>
         </ol>
 
+        <div style="font-size:12px;color:var(--mist);margin-bottom:4px;">⚠️ ターミナルでプロジェクトフォルダに移動してから実行してください：</div>
+        <div class="code-block" style="margin-bottom:8px;">cd "/Users/kamimurakazunori/Project/Mountain Climbing Plan Creation Project"</div>
+
+        <div style="font-size:12px;color:var(--mist);margin-bottom:4px;">その後、以下のコマンドを実行：</div>
         <div class="code-block" id="git-cmd">${Template.esc(Publisher.gitCommand(slug))}</div>
         <div style="display:flex;gap:8px;margin-bottom:16px;">
           <button class="copy-btn" id="copy-cmd-btn">📋 コマンドをコピー</button>
