@@ -349,6 +349,12 @@ body { overflow: hidden; }
         <span class="accordion-chevron">▾</span>
       </div>
       <div class="accordion-body">
+        <div class="accordion-ai-row">
+          <div style="flex:1">
+            <p class="text-xs text-mist" style="margin-bottom:8px;">行き先の山とその周辺の熊の目撃・出没情報を調べるプロンプトを生成します</p>
+            <button class="btn btn-primary btn-sm" id="ai-bear-btn" onclick="aiSearchBear()">✨ 熊の出没情報を調べる</button>
+          </div>
+        </div>
         <div class="form-group">
           <label class="form-label" for="safety-initial">初動ルール（1行1項目）</label>
           <textarea class="form-textarea" id="safety-initial" name="safety.initial" placeholder="①発見者は絶対に声を出さずに「ハンドサイン」で仲間に周知すること&#10;②声を出さないこと（騒がないこと）&#10;③背中を見せないこと&#10;④走って逃げないこと" style="min-height:100px;"></textarea>
@@ -767,7 +773,7 @@ document.getElementById('publish-btn').addEventListener('click', () => {
       plans[idx].publicUrl = publicUrl;
       savePlansArr(plans);
     }
-    showToast('📄 HTMLをダウンロードしました。plansフォルダに移動してpushしてください。');
+    showToast('🚀 公開しました。1〜2分後に公開URLで確認できます。');
   });
 });
 
@@ -775,14 +781,14 @@ document.getElementById('publish-btn').addEventListener('click', () => {
 function aiSearchOnsen() {
   const yamapUrl = document.getElementById('basic-yamapUrl')?.value || '';
   const ref = yamapUrl ? `\n\n参考URL（YAMAPコース）：${yamapUrl}` : '';
-  const prompt = `あなたは日本登山ガイド協会所属ガイド相当の知識をもつ登山コンシェルジュです。まず「今回の下山地点（下山口）はどこですか？」と聞いてください。回答をもとに、その下山地点から車で30分以内にある温泉を探してください。条件：Googleマップのクチコミ評価が高い・入湯料が税込1,500円以下・アクセスしやすい。温泉名・住所・料金・GoogleマップURL・クチコミ評価・おすすめポイントをまとめてください。${ref}`;
+  const prompt = `あなたは日本登山ガイド協会所属ガイド相当の知識をもつ登山コンシェルジュです。まず「今回の下山地点（下山口）はどこですか？」と聞いてください。回答をもとに、その下山地点から車で30分以内にある温泉を探してください。条件：Googleマップのクチコミ評価が高い・入湯料が税込1,500円以下・アクセスしやすい。温泉名・住所・料金・GoogleマップURL・クチコミ評価・おすすめポイントをまとめてください。${ref}\n\n出力形式はテキストで転記できる形式とし、貼り付けた後の文章が読みやすい形となるよう整形すること。`;
   window.open('https://claude.ai/new?q=' + encodeURIComponent(prompt), '_blank', 'noopener');
 }
 
 function aiSearchGourmet() {
   const yamapUrl = document.getElementById('basic-yamapUrl')?.value || '';
   const ref = yamapUrl ? `\n\n参考URL（YAMAPコース）：${yamapUrl}` : '';
-  const prompt = `あなたは日本登山ガイド協会所属ガイド相当の知識をもつ登山コンシェルジュです。まず「今回の下山地点（下山口）はどこですか？」と聞いてください。回答をもとに、その下山地点周辺のご当地グルメで人気の高いお店を3〜5件教えてください。条件：車で30分以内・地元で有名・Googleマップ評価が高い。店名・ジャンル・おすすめメニュー・住所・営業時間・GoogleマップURLをまとめてください。${ref}`;
+  const prompt = `あなたは日本登山ガイド協会所属ガイド相当の知識をもつ登山コンシェルジュです。まず「今回の下山地点（下山口）はどこですか？」と聞いてください。回答をもとに、その下山地点周辺のご当地グルメで人気の高いお店を3〜5件教えてください。条件：車で30分以内・地元で有名・Googleマップ評価が高い。店名・ジャンル・おすすめメニュー・住所・営業時間・GoogleマップURLをまとめてください。${ref}\n\n出力形式はテキストで転記できる形式とし、貼り付けた後の文章が読みやすい形となるよう整形すること。`;
   window.open('https://claude.ai/new?q=' + encodeURIComponent(prompt), '_blank', 'noopener');
 }
 
@@ -793,6 +799,16 @@ function aiSearchParking() {
     return;
   }
   const prompt = `あなたは日本登山ガイド協会所属ガイド相当の知識をもつ登山コンシェルジュです。「${destination}」について以下の情報を調べてください。\n\n・駐車台数：約◯台\n・駐車料金：◯円/◯h\n・集合場所から駐車場までの所要時間：約◯h（休憩含む）\n・満車予測：◯時頃〜◯時頃\n・満車時のBプラン（代替駐車場など）\n・他の登山者の投稿・口コミ情報`;
+  window.open('https://claude.ai/new?q=' + encodeURIComponent(prompt), '_blank', 'noopener');
+}
+
+function aiSearchBear() {
+  const destination = document.getElementById('move-destination')?.value?.trim() || '';
+  if (!destination) {
+    showToast('「行き先」を入力してからボタンを押してください', 'info');
+    return;
+  }
+  const prompt = `あなたは日本登山ガイド協会所属ガイド相当の知識をもつ登山コンシェルジュです。「${destination}」の山とその周辺エリアについて、熊（ツキノワグマ・ヒグマ）の目撃・出没情報を調べてください。\n\n・直近3ヶ月程度の目撃・出没情報（日時・場所・状況）\n・自治体・警察などが出している注意喚起や出没マップ\n・登山道・登山口・駐車場周辺での目撃例\n・出没が多い時間帯や場所の傾向\n・推奨される対策（熊鈴・熊スプレー・行動上の注意など）\n\n出力形式はテキストで転記できる形式とし、貼り付けた後の文章が読みやすい形となるよう整形すること。`;
   window.open('https://claude.ai/new?q=' + encodeURIComponent(prompt), '_blank', 'noopener');
 }
 
@@ -812,9 +828,9 @@ function aiSearchStay() {
     : '宿泊予定の施設';
   let prompt;
   if (checked.value === 'hut') {
-    prompt = `あなたは日本登山ガイド協会所属ガイド相当の知識をもつ登山コンシェルジュです。${target}（小屋泊）について以下の情報を調べてください。\n\n・小屋代：◯円/人泊\n・山荘入予定：◯時頃\n・部屋タイプ：相部屋など\n・女子用更衣室：有無\n・シュラフ・シーツの持参：必須／任意\n・翌日弁当の販売：有無\n・売店：有無\n・水場：有無\n・乾燥室：有無\n・入浴：有無\n・小屋のおすすめポイント（人気のグルメ・温泉など）`;
+    prompt = `あなたは日本登山ガイド協会所属ガイド相当の知識をもつ登山コンシェルジュです。${target}（小屋泊）について以下の情報を調べてください。\n\n・小屋代：◯円/人泊\n・山荘入予定：◯時頃\n・部屋タイプ：相部屋など\n・女子用更衣室：有無\n・シュラフ・シーツの持参：必須／任意\n・翌日弁当の販売：有無\n・売店：有無\n・水場：有無\n・乾燥室：有無\n・入浴：有無\n・小屋のおすすめポイント（人気のグルメ・温泉など）\n\n出力形式はテキストで転記できる形式とし、貼り付けた後の文章が読みやすい形となるよう整形すること。`;
   } else {
-    prompt = `あなたは日本登山ガイド協会所属ガイド相当の知識をもつ登山コンシェルジュです。${target}（テント泊）について以下の情報を調べてください。\n\n・テント場代：◯円/人\n・テント張代：◯円/張\n・張数（収容可能数）：◯張\n・水場：有無\n・予約の要否：要予約／当日可\n・トイレ：有無・種類\n・ゴミの扱い：持ち帰り必須／処理可\n・テント場のおすすめポイントや注意事項`;
+    prompt = `あなたは日本登山ガイド協会所属ガイド相当の知識をもつ登山コンシェルジュです。${target}（テント泊）について以下の情報を調べてください。\n\n・テント場代：◯円/人\n・テント張代：◯円/張\n・張数（収容可能数）：◯張\n・水場：有無\n・予約の要否：要予約／当日可\n・トイレ：有無・種類\n・ゴミの扱い：持ち帰り必須／処理可\n・テント場のおすすめポイントや注意事項\n\n出力形式はテキストで転記できる形式とし、貼り付けた後の文章が読みやすい形となるよう整形すること。`;
   }
   window.open('https://claude.ai/new?q=' + encodeURIComponent(prompt), '_blank', 'noopener');
 }

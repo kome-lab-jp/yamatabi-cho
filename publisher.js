@@ -12,27 +12,21 @@ const Publisher = {
     window.YAMATABI_SITE_URL = url.trim().replace(/\/$/, '');
   },
 
-  download(html, slug) {
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `${slug}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(a.href);
-  },
-
-  gitCommand(slug) {
-    return `git add plans/ && git commit -m "山旅帖: 計画書を追加 (${slug})" && git push`;
-  },
-
-  async copyToClipboard(text) {
+  async publish(slug, html) {
+    let res;
     try {
-      await navigator.clipboard.writeText(text);
-      return true;
+      res = await fetch('/api/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug, html }),
+      });
     } catch {
-      return false;
+      return { ok: false, error: 'サーバーに接続できません。「山旅帖を起動.command」からアプリを起動し直してください。' };
+    }
+    try {
+      return await res.json();
+    } catch {
+      return { ok: false, error: `サーバーエラー（${res.status}）` };
     }
   },
 
@@ -45,7 +39,7 @@ const Publisher = {
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="pub-title">
         <h2 class="modal-title" id="pub-title">🚀 計画書を公開する</h2>
         <p style="font-size:14px;color:var(--mist);margin-bottom:16px;">
-          以下の手順で計画書をインターネットに公開します。
+          「公開する」を押すと、計画書HTMLの保存とGitへの反映（コミット＆プッシュ）まで自動で行います。
         </p>
 
         <div style="background:var(--cream);border-radius:8px;padding:14px 16px;margin-bottom:16px;">
@@ -53,29 +47,15 @@ const Publisher = {
           <div style="font-size:13px;word-break:break-all;color:var(--forest2);" id="pub-url">${Template.esc(publicUrl)}</div>
         </div>
 
-        <ol style="font-size:14px;line-height:2;padding-left:20px;margin-bottom:16px;">
-          <li>「HTMLをダウンロード」を押す</li>
-          <li>ダウンロードした <code>${Template.esc(slug)}.html</code> をプロジェクトの <code>plans/</code> フォルダに移動する</li>
-          <li>ターミナルを開き、<strong>プロジェクトフォルダに移動</strong>してから下のコマンドを実行する</li>
-        </ol>
-
-        <div style="font-size:12px;color:var(--mist);margin-bottom:4px;">⚠️ ターミナルでプロジェクトフォルダに移動してから実行してください：</div>
-        <div class="code-block" style="margin-bottom:8px;">cd "/Users/kamimurakazunori/Project/Mountain Climbing Plan Creation Project"</div>
-
-        <div style="font-size:12px;color:var(--mist);margin-bottom:4px;">その後、以下のコマンドを実行：</div>
-        <div class="code-block" id="git-cmd">${Template.esc(Publisher.gitCommand(slug))}</div>
-        <div style="display:flex;gap:8px;margin-bottom:16px;">
-          <button class="copy-btn" id="copy-cmd-btn">📋 コマンドをコピー</button>
-          <span id="copy-ok" style="font-size:12px;color:var(--forest2);display:none;align-items:center;">✓ コピーしました</span>
-        </div>
-
-        <p style="font-size:12px;color:var(--mist);">
+        <p style="font-size:12px;color:var(--mist);margin-bottom:16px;">
           push後、Cloudflare Pagesが自動でデプロイします（約1〜2分）。
         </p>
 
+        <div id="pub-status" style="font-size:13px;margin-bottom:16px;display:none;"></div>
+
         <div class="modal-actions">
           <button class="btn btn-outline" id="pub-cancel">キャンセル</button>
-          <button class="btn btn-gold" id="pub-download">HTMLをダウンロード</button>
+          <button class="btn btn-gold" id="pub-run">🚀 公開する</button>
         </div>
       </div>`;
 
@@ -90,16 +70,28 @@ const Publisher = {
     overlay.querySelector('#pub-cancel').addEventListener('click', close);
     overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
 
-    overlay.querySelector('#copy-cmd-btn').addEventListener('click', async () => {
-      const ok = await Publisher.copyToClipboard(Publisher.gitCommand(slug));
-      const okEl = overlay.querySelector('#copy-ok');
-      okEl.style.display = ok ? 'inline-flex' : 'none';
-      if (ok) setTimeout(() => { okEl.style.display = 'none'; }, 2500);
-    });
+    const runBtn = overlay.querySelector('#pub-run');
+    const statusEl = overlay.querySelector('#pub-status');
 
-    overlay.querySelector('#pub-download').addEventListener('click', () => {
-      Publisher.download(html, slug);
-      if (typeof onConfirm === 'function') onConfirm(slug, publicUrl);
+    runBtn.addEventListener('click', async () => {
+      runBtn.disabled = true;
+      statusEl.style.display = 'block';
+      statusEl.style.color = 'var(--mist)';
+      statusEl.textContent = '⏳ 公開中…（保存 → git add / commit / push）';
+
+      const result = await Publisher.publish(slug, html);
+
+      if (result.ok) {
+        statusEl.style.color = 'var(--forest2)';
+        statusEl.innerHTML = `✓ 公開しました。1〜2分後に <a href="${Template.esc(publicUrl)}" target="_blank" rel="noopener">${Template.esc(publicUrl)}</a> で確認できます。`;
+        overlay.querySelector('#pub-cancel').textContent = '閉じる';
+        runBtn.style.display = 'none';
+        if (typeof onConfirm === 'function') onConfirm(slug, publicUrl);
+      } else {
+        statusEl.style.color = '#c0392b';
+        statusEl.textContent = `⚠️ 公開に失敗しました: ${result.error || '不明なエラー'}`;
+        runBtn.disabled = false;
+      }
     });
   }
 };
