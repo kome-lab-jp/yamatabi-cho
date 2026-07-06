@@ -18,6 +18,11 @@ class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
+    def end_headers(self):
+        # ブラウザに古いキャッシュを使わせない（毎回サーバーへ更新確認させる）
+        self.send_header('Cache-Control', 'no-cache')
+        super().end_headers()
+
     def _send_json(self, status, obj):
         body = json.dumps(obj, ensure_ascii=False).encode('utf-8')
         self.send_response(status)
