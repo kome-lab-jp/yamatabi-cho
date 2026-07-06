@@ -181,11 +181,12 @@ function createNew() {
     updatedAt: new Date().toISOString()
   });
   savePlans(plans);
-  location.href = `editor.html?id=${id}`;
+  location.href = `editor.html?id=${id}&v=2`;
 }
 
 function editPlan(id) {
-  location.href = `editor.html?id=${id}`;
+  // v= はキャッシュバスター。古い計画のURLに残った改良前キャッシュを避けるため付与
+  location.href = `editor.html?id=${id}&v=2`;
 }
 
 function duplicatePlan(id) {
