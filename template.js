@@ -342,6 +342,7 @@ a{color:var(--forest2);word-break:break-all;}
 .fold-text[open]>summary{margin-bottom:6px;}
 .mt-12{margin-top:12px;}.text-sm{font-size:13px;}
 .app-footer{text-align:center;padding:24px;font-size:12px;color:var(--mist);border-top:1px solid var(--border);margin-top:24px;}
+.ai-notice{max-width:800px;margin:0 auto;padding:0 16px 8px;font-size:11px;line-height:1.7;color:var(--mist);text-align:center;}
 @media(max-width:768px){.hero-title{font-size:22px;}.cost-summary{flex-direction:column;gap:10px;align-items:flex-start;}.cost-per-label{text-align:left;}.published-layout{padding:16px 12px 40px;}}
 </style>
 </head>
@@ -363,7 +364,10 @@ a{color:var(--forest2);word-break:break-all;}
 <main class="published-layout">
 ${body}
 </main>
-<footer class="app-footer">山旅帖で作成</footer>
+<footer class="app-footer">
+  <p class="ai-notice">※ 本計画書の一部はAI（人工知能）を利用して作成しています。料金・営業時間・道路状況・施設の営業情報・クマの出没情報などは、実際と異なる場合があります。お出かけ前に必ず公式サイト等の最新情報をご確認ください。</p>
+  山旅帖で作成
+</footer>
 </body>
 </html>`;
   }
