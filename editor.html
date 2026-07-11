@@ -23,6 +23,21 @@ body { overflow: hidden; }
 .dynamic-day-entry { border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
 .dynamic-day-label { font-size: 13px; font-weight: 500; color: var(--mist); margin-bottom: 10px; }
 .add-day-btn { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; }
+
+/* 保存状態の常時表示（自動保存のたびにトーストを出さないための控えめな表示） */
+.save-status { font-size: 12px; color: rgba(255,255,255,0.75); white-space: nowrap; }
+.save-status.error { color: #FFC9C0; font-weight: 500; }
+/* 極小画面ではトップバーに収まらないため非表示（保存失敗時はトーストが出る） */
+@media (max-width: 359px) { .save-status { display: none; } }
+
+/* AI回答取り込み：候補カード */
+.ai-candidate-card { border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; background: var(--cream); }
+.ai-candidate-name { font-size: 14px; font-weight: 500; margin-bottom: 6px; }
+.ai-candidate-field { font-size: 12.5px; margin: 3px 0; word-break: break-all; }
+.ai-candidate-field .lbl { color: var(--mist); }
+.ai-import-warn { background: #FFF6E8; border: 1px solid var(--gold); border-radius: 8px; padding: 12px 14px; margin-top: 10px; font-size: 13px; }
+.ai-import-warn ul { margin: 6px 0 10px; padding-left: 18px; }
+.ai-import-warn li { margin: 2px 0; word-break: break-all; }
 </style>
 </head>
 <body>
@@ -31,16 +46,17 @@ body { overflow: hidden; }
 <div class="editor-topbar">
   <a href="index.html" class="btn btn-ghost btn-sm" style="color:rgba(255,255,255,0.7);">← 一覧</a>
   <div class="editor-topbar-title" id="topbar-title">新しい計画書</div>
-  <div style="display:flex;gap:8px;flex-shrink:0;">
-    <button class="btn btn-outline btn-sm" id="save-btn" style="color:#fff;border-color:rgba(255,255,255,0.4);">💾 保存</button>
-    <button class="btn btn-gold btn-sm" id="publish-btn">🚀 公開する</button>
+  <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;">
+    <span class="save-status" id="save-status" role="status" aria-live="polite"></span>
+    <button type="button" class="btn btn-outline btn-sm" id="save-btn" style="color:#fff;border-color:rgba(255,255,255,0.4);">💾 保存</button>
+    <button type="button" class="btn btn-gold btn-sm" id="publish-btn">🚀 公開する</button>
   </div>
 </div>
 
 <!-- Mobile tab bar -->
 <div class="editor-tab-bar" id="tab-bar">
-  <div class="editor-tab active" data-tab="edit">✏️ 入力</div>
-  <div class="editor-tab" data-tab="preview">👁 プレビュー</div>
+  <button type="button" class="editor-tab active" data-tab="edit" aria-pressed="true">✏️ 入力</button>
+  <button type="button" class="editor-tab" data-tab="preview" aria-pressed="false">👁 プレビュー</button>
 </div>
 
 <!-- Editor wrap -->
@@ -52,11 +68,11 @@ body { overflow: hidden; }
 
     <!-- 1. 基本情報 -->
     <div class="accordion-item" id="acc-basic">
-      <div class="accordion-header open" onclick="toggleAcc(this)">
+      <button type="button" class="accordion-header open" aria-expanded="true" aria-controls="acc-basic-body">
         <span><span aria-hidden="true">🏔</span> 基本情報</span>
         <span class="accordion-chevron">▾</span>
-      </div>
-      <div class="accordion-body open">
+      </button>
+      <div class="accordion-body open" id="acc-basic-body">
         <div class="form-group">
           <label class="form-label" for="basic-title">山行名</label>
           <input class="form-input" id="basic-title" name="basic.title" placeholder="例：雨飾山🍁紅葉登山">
@@ -93,11 +109,11 @@ body { overflow: hidden; }
 
     <!-- 2. 集合・移動 -->
     <div class="accordion-item" id="acc-move">
-      <div class="accordion-header" onclick="toggleAcc(this)">
+      <button type="button" class="accordion-header" aria-expanded="false" aria-controls="acc-move-body">
         <span><span aria-hidden="true">🚗</span> 集合・移動</span>
         <span class="accordion-chevron">▾</span>
-      </div>
-      <div class="accordion-body">
+      </button>
+      <div class="accordion-body" id="acc-move-body">
         <div class="form-group">
           <label class="form-label" for="move-datetime">集合日時</label>
           <input class="form-input" id="move-datetime" name="move.datetime" type="datetime-local">
@@ -114,7 +130,7 @@ body { overflow: hidden; }
         <div class="accordion-ai-row">
           <div style="flex:1">
             <p class="text-xs text-mist" style="margin-bottom:8px;">行き先の駐車場情報（台数・料金・満車予測等）を調べるプロンプトを生成します</p>
-            <button class="btn btn-primary btn-sm" id="ai-parking-btn" onclick="aiSearchParking()">✨ 駐車場情報を調べる</button>
+            <button type="button" class="btn btn-primary btn-sm" id="ai-parking-btn">✨ 駐車場情報を調べる</button>
           </div>
         </div>
         <div class="form-group">
@@ -131,53 +147,56 @@ body { overflow: hidden; }
 
     <!-- 3. 食事計画 -->
     <div class="accordion-item" id="acc-food">
-      <div class="accordion-header" onclick="toggleAcc(this)">
+      <button type="button" class="accordion-header" aria-expanded="false" aria-controls="acc-food-body">
         <span><span aria-hidden="true">🍳</span> 食事計画</span>
         <span class="accordion-chevron">▾</span>
-      </div>
-      <div class="accordion-body">
+      </button>
+      <div class="accordion-body" id="acc-food-body">
         <div id="food-days-container"></div>
-        <button type="button" class="btn btn-outline btn-sm add-day-btn" onclick="addFoodDay()">＋ 翌日を追加</button>
+        <button type="button" class="btn btn-outline btn-sm add-day-btn" id="add-food-day-btn">＋ 翌日を追加</button>
       </div>
     </div>
 
     <!-- 4. 宿泊 -->
     <div class="accordion-item" id="acc-stay">
-      <div class="accordion-header" onclick="toggleAcc(this)">
+      <button type="button" class="accordion-header" aria-expanded="false" aria-controls="acc-stay-body">
         <span><span aria-hidden="true">🏕</span> 宿泊</span>
         <span class="accordion-chevron">▾</span>
-      </div>
-      <div class="accordion-body">
+      </button>
+      <div class="accordion-body" id="acc-stay-body">
         <div class="accordion-ai-row" style="margin-bottom:16px;">
           <div style="flex:1">
             <p class="text-xs text-mist" style="margin-bottom:8px;">宿泊形態を選択して、施設情報を調べるプロンプトを生成します</p>
             <div style="display:flex;gap:16px;margin-bottom:10px;">
               <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
-                <input type="radio" name="stay.type" id="stay-type-hut" value="hut" onchange="onStayTypeChange()"> 小屋泊
+                <input type="radio" name="stay.type" id="stay-type-hut" value="hut"> 小屋泊
               </label>
               <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
-                <input type="radio" name="stay.type" id="stay-type-tent" value="tent" onchange="onStayTypeChange()"> テント泊
+                <input type="radio" name="stay.type" id="stay-type-tent" value="tent"> テント泊
               </label>
             </div>
-            <button class="btn btn-primary btn-sm" id="ai-stay-btn" onclick="aiSearchStay()" disabled>✨ 宿泊施設情報を調べる</button>
+            <button type="button" class="btn btn-primary btn-sm" id="ai-stay-btn" disabled>✨ 宿泊施設情報を調べる</button>
           </div>
         </div>
         <div id="stay-days-container"></div>
-        <button type="button" class="btn btn-outline btn-sm add-day-btn" onclick="addStayDay()">＋ 翌日を追加</button>
+        <button type="button" class="btn btn-outline btn-sm add-day-btn" id="add-stay-day-btn">＋ 翌日を追加</button>
       </div>
     </div>
 
     <!-- 5. 下山後の温泉 -->
     <div class="accordion-item" id="acc-onsen">
-      <div class="accordion-header" onclick="toggleAcc(this)">
+      <button type="button" class="accordion-header" aria-expanded="false" aria-controls="acc-onsen-body">
         <span><span aria-hidden="true">♨️</span> 下山後の温泉</span>
         <span class="accordion-chevron">▾</span>
-      </div>
-      <div class="accordion-body">
+      </button>
+      <div class="accordion-body" id="acc-onsen-body">
         <div class="accordion-ai-row">
           <div style="flex:1">
-            <p class="text-xs text-mist" style="margin-bottom:8px;">YAMAPコースURLから下山地点を特定し、周辺の温泉を検索します（入湯料1,500円以下・車30分以内・高評価）</p>
-            <button class="btn btn-primary btn-sm" onclick="aiSearchOnsen()">✨ AIで温泉を探す</button>
+            <p class="text-xs text-mist" style="margin-bottom:8px;">YAMAPコースURLから下山地点を特定し、周辺の温泉を検索します（入湯料1,500円以下・車30分以内・高評価）。検索後、Claudeの最後の回答をコピーして「AI回答を取り込む」で貼り付けると、下の入力欄へ自動で振り分けられます。</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button type="button" class="btn btn-primary btn-sm" id="ai-onsen-btn">✨ AIで温泉を探す</button>
+              <button type="button" class="btn btn-outline btn-sm" id="ai-onsen-import-btn">📥 AI回答を取り込む</button>
+            </div>
           </div>
         </div>
         <div class="form-group mt-12">
@@ -209,15 +228,15 @@ body { overflow: hidden; }
 
     <!-- 6. 下山後グルメ -->
     <div class="accordion-item" id="acc-gourmet">
-      <div class="accordion-header" onclick="toggleAcc(this)">
+      <button type="button" class="accordion-header" aria-expanded="false" aria-controls="acc-gourmet-body">
         <span><span aria-hidden="true">🍖</span> 下山後グルメ</span>
         <span class="accordion-chevron">▾</span>
-      </div>
-      <div class="accordion-body">
+      </button>
+      <div class="accordion-body" id="acc-gourmet-body">
         <div class="accordion-ai-row">
           <div style="flex:1">
             <p class="text-xs text-mist" style="margin-bottom:8px;">YAMAPコースURLから下山地点を特定し、周辺のご当地グルメ（車30分以内・人気店）を検索します</p>
-            <button class="btn btn-primary btn-sm" onclick="aiSearchGourmet()">✨ AIでグルメを探す</button>
+            <button type="button" class="btn btn-primary btn-sm" id="ai-gourmet-btn">✨ AIでグルメを探す</button>
           </div>
         </div>
         <div class="form-group mt-12">
@@ -241,11 +260,11 @@ body { overflow: hidden; }
 
     <!-- 7. 共通経費 -->
     <div class="accordion-item" id="acc-cost">
-      <div class="accordion-header" onclick="toggleAcc(this)">
+      <button type="button" class="accordion-header" aria-expanded="false" aria-controls="acc-cost-body">
         <span><span aria-hidden="true">💰</span> 共通経費計算</span>
         <span class="accordion-chevron">▾</span>
-      </div>
-      <div class="accordion-body">
+      </button>
+      <div class="accordion-body" id="acc-cost-body">
         <div class="form-row">
           <div class="form-group">
             <label class="form-label" for="cost-members">参加人数</label>
@@ -322,11 +341,11 @@ body { overflow: hidden; }
 
     <!-- 8. 登山届・保険 -->
     <div class="accordion-item" id="acc-reg">
-      <div class="accordion-header" onclick="toggleAcc(this)">
+      <button type="button" class="accordion-header" aria-expanded="false" aria-controls="acc-reg-body">
         <span><span aria-hidden="true">📝</span> 登山届・保険</span>
         <span class="accordion-chevron">▾</span>
-      </div>
-      <div class="accordion-body">
+      </button>
+      <div class="accordion-body" id="acc-reg-body">
         <div class="form-group">
           <label class="form-label" for="reg-note">登山届の案内</label>
           <textarea class="form-textarea" id="reg-note" name="reg.note" placeholder="例：YAMAPユーザー：リーダーが登山届を提出後、各自で個人情報を登録してください。" style="min-height:100px;"></textarea>
@@ -344,15 +363,15 @@ body { overflow: hidden; }
 
     <!-- 9. 安全ルール -->
     <div class="accordion-item" id="acc-safety">
-      <div class="accordion-header" onclick="toggleAcc(this)">
+      <button type="button" class="accordion-header" aria-expanded="false" aria-controls="acc-safety-body">
         <span><span aria-hidden="true">🐻</span> 安全ルール（クマ対応）</span>
         <span class="accordion-chevron">▾</span>
-      </div>
-      <div class="accordion-body">
+      </button>
+      <div class="accordion-body" id="acc-safety-body">
         <div class="accordion-ai-row">
           <div style="flex:1">
             <p class="text-xs text-mist" style="margin-bottom:8px;">行き先の山とその周辺の熊の目撃・出没情報を調べるプロンプトを生成します</p>
-            <button class="btn btn-primary btn-sm" id="ai-bear-btn" onclick="aiSearchBear()">✨ 熊の出没情報を調べる</button>
+            <button type="button" class="btn btn-primary btn-sm" id="ai-bear-btn">✨ 熊の出没情報を調べる</button>
           </div>
         </div>
         <div class="form-group">
@@ -373,14 +392,43 @@ body { overflow: hidden; }
   <div class="editor-right" id="panel-preview">
     <div class="preview-toggle">
       <span style="font-size:12px;color:var(--mist);flex:1;">プレビュー</span>
-      <button class="preview-toggle-btn active" id="prev-desktop" onclick="setPreview('desktop')">🖥 デスクトップ</button>
-      <button class="preview-toggle-btn" id="prev-mobile" onclick="setPreview('mobile')">📱 スマホ</button>
+      <button type="button" class="preview-toggle-btn active" id="prev-desktop">🖥 デスクトップ</button>
+      <button type="button" class="preview-toggle-btn" id="prev-mobile">📱 スマホ</button>
     </div>
     <div class="preview-frame">
       <iframe id="preview-inner" class="preview-inner" sandbox title="プレビュー" style="width:100%;border:none;display:block;min-height:calc(100vh - 150px);"></iframe>
     </div>
   </div>
 
+</div>
+
+<!-- AI回答取り込みモーダル（温泉） -->
+<div class="modal-overlay" id="ai-import-modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ai-import-title" aria-describedby="ai-import-desc" style="max-width:560px;">
+    <h2 class="modal-title" id="ai-import-title">📥 AI回答の取り込み（温泉）</h2>
+
+    <div id="ai-import-paste-step">
+      <p id="ai-import-desc" class="text-xs text-mist" style="margin-bottom:10px;">
+        Claudeとのやりとりの<strong>最後の回答</strong>（末尾にJSONデータが付いたもの）を全文コピーして、下の欄に貼り付けてください。
+      </p>
+      <textarea class="form-textarea" id="ai-import-text" style="min-height:150px;" placeholder="ここにClaudeの回答を貼り付け" data-autofocus></textarea>
+      <p id="ai-import-error" style="display:none;color:var(--red);font-size:13px;margin-top:8px;" role="alert"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" id="ai-import-cancel">キャンセル</button>
+        <button type="button" class="btn btn-primary" id="ai-import-parse">解析する</button>
+      </div>
+    </div>
+
+    <div id="ai-import-result-step" style="display:none;">
+      <p class="text-xs text-mist" style="margin-bottom:10px;">採用する温泉を1件選んでください。反映前に上書きされる項目を確認できます。</p>
+      <div id="ai-import-cards" style="max-height:45vh;overflow-y:auto;"></div>
+      <div id="ai-import-confirm" style="display:none;"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" id="ai-import-back">← 貼り付けに戻る</button>
+        <button type="button" class="btn btn-outline" id="ai-import-close">閉じる</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- Toast -->
@@ -408,8 +456,10 @@ function savePlansArr(plans) {
   }
   try {
     localStorage.setItem(DB_KEY, json);
+    return true;
   } catch (e) {
     showToast('保存に失敗しました。ストレージ容量を確認してください。', 'error');
+    return false;
   }
 }
 function loadPlan() {
@@ -670,6 +720,7 @@ function updateCalc() {
 }
 
 // ── Accordion ──
+// 見出しはbutton要素なので、EnterキーとSpaceキーでの開閉はブラウザが標準対応する
 function toggleAcc(header) {
   const body = header.nextElementSibling;
   const isOpen = header.classList.contains('open');
@@ -677,6 +728,10 @@ function toggleAcc(header) {
   header.setAttribute('aria-expanded', String(!isOpen));
   body.classList.toggle('open', !isOpen);
 }
+
+document.querySelectorAll('.accordion-header').forEach(header => {
+  header.addEventListener('click', () => toggleAcc(header));
+});
 
 // ── Preview ──
 let previewMode = 'desktop';
@@ -704,18 +759,30 @@ function buildCurrentPlan() {
 }
 
 // ── Save ──
-function savePlan() {
+// 保存状態の常時表示。自動保存のたびにトーストは出さず、この表示だけを更新する
+function setSaveStatus(state) {
+  const el = document.getElementById('save-status');
+  const map = { dirty: '未保存', saving: '保存中…', saved: '✓ 保存済み', error: '⚠ 保存失敗' };
+  el.textContent = map[state] || '';
+  el.classList.toggle('error', state === 'error');
+}
+
+// notify=true（手動保存）のときだけ成功トーストを表示する。失敗トーストはsavePlansArr側で常に出る
+function savePlan({ notify = false } = {}) {
+  setSaveStatus('saving');
   const plans = loadPlans();
   const idx = plans.findIndex(p => p.id === planId);
   const plan = buildCurrentPlan();
   plan.updatedAt = new Date().toISOString();
   if (idx >= 0) plans[idx] = plan;
   else plans.unshift(plan);
-  savePlansArr(plans);
-  showToast('💾 保存しました');
+  const ok = savePlansArr(plans);
+  setSaveStatus(ok ? 'saved' : 'error');
+  if (ok && notify) showToast('💾 保存しました');
+  return ok;
 }
 
-document.getElementById('save-btn').addEventListener('click', savePlan);
+document.getElementById('save-btn').addEventListener('click', () => savePlan({ notify: true }));
 
 // Auto-save on input (debounced)
 let saveTimer;
@@ -727,9 +794,10 @@ function schedulePreview() {
 }
 
 function onInput() {
+  setSaveStatus('dirty');
   schedulePreview();
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(savePlan, 1500);
+  saveTimer = setTimeout(() => savePlan(), 1500);
 }
 
 document.querySelectorAll('.form-input, .form-textarea').forEach(el => {
@@ -781,7 +849,26 @@ document.getElementById('publish-btn').addEventListener('click', () => {
 function aiSearchOnsen() {
   const yamapUrl = document.getElementById('basic-yamapUrl')?.value || '';
   const ref = yamapUrl ? `\n\n参考URL（YAMAPコース）：${yamapUrl}` : '';
-  const prompt = `あなたは日本登山ガイド協会所属ガイド相当の知識をもつ登山コンシェルジュです。まず「今回の下山地点（下山口）はどこですか？」と聞いてください。回答をもとに、その下山地点から車で30分以内にある温泉を探してください。条件：Googleマップのクチコミ評価が高い・入湯料が税込1,500円以下・アクセスしやすい。温泉名・住所・料金・GoogleマップURL・クチコミ評価・おすすめポイントをまとめてください。${ref}\n\n出力形式はテキストで転記できる形式とし、貼り付けた後の文章が読みやすい形となるよう整形すること。`;
+  const prompt = `あなたは日本登山ガイド協会所属ガイド相当の知識をもつ登山コンシェルジュです。まず「今回の下山地点（下山口）はどこですか？」と聞いてください。回答をもとに、その下山地点から車で30分以内にある温泉を最大3件探してください。条件：Googleマップのクチコミ評価が高い・入湯料が税込1,500円以下・アクセスしやすい。${ref}
+
+最終回答は、必ず次の2部構成にしてください。
+
+【第1部】読みやすい紹介文
+各温泉について、温泉名・住所・料金・営業時間・GoogleマップURL・クチコミ評価・おすすめポイントを、人が読みやすい形に整形して紹介する。
+
+【第2部】転記用データ（回答の末尾）
+次の形式のJSONコードブロックを1つだけ付ける。値が確認できない項目は "要確認" とする。
+\`\`\`json
+{"type":"onsen","candidates":[{"name":"温泉名","url":"公式サイトURL","mapUrl":"GoogleマップURL","fee":"料金","access":"下山地点からの所要時間","businessHours":"営業時間","note":"おすすめポイントと注意事項","sourceUrl":"情報源URL","checkedAt":"情報確認日(YYYY-MM-DD)"}]}
+\`\`\`
+
+【最終回答前のレビュー工程（必須）】
+最終回答を出力する前に、回答者とは別の校閲担当者になったつもりで、回答の全文をレビュー・再チェックすること。最初の修正点を1つ見つけた時点で終了せず、全候補・全項目を最後まで確認する。
+・第1部の紹介文と第2部のJSONの内容が一致しているか
+・URLがhttpsで始まる正しい形式か、実在する施設のものか
+・料金・営業時間が古い情報でないか（確認できない場合は「要確認」と明記されているか）
+・JSONの文法が正しいか（コードブロック内にJSON以外の文字が混ざっていないか）
+見つかった問題をすべて修正した最終版のみを回答すること。レビューの過程や修正前の版は出力しない。`;
   window.open('https://claude.ai/new?q=' + encodeURIComponent(prompt), '_blank', 'noopener');
 }
 
@@ -818,6 +905,20 @@ function onStayTypeChange() {
   onInput();
 }
 
+// ── ボタン・ラジオのイベント登録（インラインonclickは使わない） ──
+document.getElementById('ai-onsen-btn').addEventListener('click', aiSearchOnsen);
+document.getElementById('ai-parking-btn').addEventListener('click', aiSearchParking);
+document.getElementById('ai-stay-btn').addEventListener('click', aiSearchStay);
+document.getElementById('ai-gourmet-btn').addEventListener('click', aiSearchGourmet);
+document.getElementById('ai-bear-btn').addEventListener('click', aiSearchBear);
+document.getElementById('add-food-day-btn').addEventListener('click', () => addFoodDay(''));
+document.getElementById('add-stay-day-btn').addEventListener('click', () => addStayDay({}));
+document.querySelectorAll('input[name="stay.type"]').forEach(radio => {
+  radio.addEventListener('change', onStayTypeChange);
+});
+document.getElementById('prev-desktop').addEventListener('click', () => setPreview('desktop'));
+document.getElementById('prev-mobile').addEventListener('click', () => setPreview('mobile'));
+
 function aiSearchStay() {
   const checked = document.querySelector('input[name="stay.type"]:checked');
   if (!checked) return;
@@ -835,13 +936,257 @@ function aiSearchStay() {
   window.open('https://claude.ai/new?q=' + encodeURIComponent(prompt), '_blank', 'noopener');
 }
 
+// ── AI回答取り込み（温泉） ──
+// URLがhttp/httpsのときだけ安全とみなす（javascript:等を弾く）
+function isSafeHttpUrl(url) {
+  try {
+    const u = new URL(String(url));
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch { return false; }
+}
+
+// Claudeの回答テキストからJSONを取り出す。
+// コードフェンス（```json）付き・なしの両方に対応し、解析できなければnullを返す
+function extractOnsenJson(text) {
+  const tries = [];
+  for (const m of String(text).matchAll(/```(?:json)?\s*([\s\S]*?)```/g)) {
+    tries.push(m[1]);
+  }
+  const first = text.indexOf('{');
+  const last = text.lastIndexOf('}');
+  if (first >= 0 && last > first) tries.push(text.slice(first, last + 1));
+  for (const t of tries) {
+    try {
+      const obj = JSON.parse(t);
+      if (obj && Array.isArray(obj.candidates)) return obj;
+    } catch { /* 次の候補を試す */ }
+  }
+  return null;
+}
+
+// 候補1件の各項目を文字列化・検証する。URL項目はhttp/https以外を捨てる
+const ONSEN_IMPORT_FIELDS = [
+  ['name', '温泉名'], ['url', '公式サイト'], ['mapUrl', 'Googleマップ'],
+  ['fee', '料金'], ['access', 'アクセス'], ['businessHours', '営業時間'],
+  ['note', 'メモ'], ['sourceUrl', '情報源'], ['checkedAt', '情報確認日'],
+];
+
+function sanitizeOnsenCandidate(raw) {
+  const out = {};
+  for (const [key] of ONSEN_IMPORT_FIELDS) {
+    let v = raw?.[key];
+    if (v == null || typeof v === 'object') continue;
+    v = String(v).trim();
+    if (!v) continue;
+    if ((key === 'url' || key === 'mapUrl' || key === 'sourceUrl') && !isSafeHttpUrl(v)) continue;
+    out[key] = v.slice(0, 500);
+  }
+  return out;
+}
+
+// 候補 → 入力欄への反映内容を組み立てる（メモ欄には営業時間・情報源なども読みやすくまとめる)
+function buildOnsenChanges(cand) {
+  const noteLines = [];
+  if (cand.businessHours) noteLines.push(`営業時間：${cand.businessHours}`);
+  if (cand.note) noteLines.push(cand.note);
+  if (cand.sourceUrl) noteLines.push(`情報源：${cand.sourceUrl}`);
+  if (cand.checkedAt) noteLines.push(`情報確認日：${cand.checkedAt}（料金・営業時間は公式情報で最終確認してください）`);
+  const changes = [
+    { id: 'onsen-name',   label: '温泉名',        newVal: cand.name || '' },
+    { id: 'onsen-url',    label: 'URL',           newVal: cand.url || '' },
+    { id: 'onsen-mapUrl', label: 'Google Map URL', newVal: cand.mapUrl || '' },
+    { id: 'onsen-fee',    label: '料金',          newVal: cand.fee || '' },
+    { id: 'onsen-access', label: 'アクセス',      newVal: cand.access || '' },
+    { id: 'onsen-note',   label: 'メモ',          newVal: noteLines.join('\n') },
+  ].filter(ch => ch.newVal);
+  changes.forEach(ch => { ch.oldVal = document.getElementById(ch.id).value.trim(); });
+  return changes;
+}
+
+let aiImportLastFocused = null;
+
+function openAiImportModal() {
+  aiImportLastFocused = document.activeElement;
+  const overlay = document.getElementById('ai-import-modal');
+  document.getElementById('ai-import-text').value = '';
+  document.getElementById('ai-import-error').style.display = 'none';
+  showAiImportStep('paste');
+  overlay.classList.add('show');
+  document.getElementById('ai-import-text').focus();
+}
+
+function closeAiImportModal() {
+  document.getElementById('ai-import-modal').classList.remove('show');
+  if (aiImportLastFocused && document.contains(aiImportLastFocused)) aiImportLastFocused.focus();
+  aiImportLastFocused = null;
+}
+
+function showAiImportStep(step) {
+  document.getElementById('ai-import-paste-step').style.display  = step === 'paste'  ? '' : 'none';
+  document.getElementById('ai-import-result-step').style.display = step === 'result' ? '' : 'none';
+  document.getElementById('ai-import-confirm').style.display = 'none';
+  document.getElementById('ai-import-confirm').textContent = '';
+}
+
+function showAiImportError(msg) {
+  const el = document.getElementById('ai-import-error');
+  el.textContent = msg;
+  el.style.display = '';
+}
+
+// 候補カードを生成する。回答由来の文字列は必ずtextContentで扱い、HTMLとして描画しない
+function renderOnsenCandidates(candidates) {
+  const wrap = document.getElementById('ai-import-cards');
+  wrap.textContent = '';
+  candidates.forEach(cand => {
+    const card = document.createElement('div');
+    card.className = 'ai-candidate-card';
+
+    const name = document.createElement('div');
+    name.className = 'ai-candidate-name';
+    name.textContent = `♨️ ${cand.name || '名称不明'}`;
+    card.appendChild(name);
+
+    for (const [key, label] of ONSEN_IMPORT_FIELDS) {
+      if (key === 'name' || !cand[key]) continue;
+      const row = document.createElement('div');
+      row.className = 'ai-candidate-field';
+      const lbl = document.createElement('span');
+      lbl.className = 'lbl';
+      lbl.textContent = `${label}：`;
+      row.appendChild(lbl);
+      if (key === 'url' || key === 'mapUrl' || key === 'sourceUrl') {
+        const a = document.createElement('a');
+        a.href = cand[key];
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.textContent = cand[key];
+        row.appendChild(a);
+      } else {
+        row.appendChild(document.createTextNode(cand[key]));
+      }
+      card.appendChild(row);
+    }
+
+    const adoptBtn = document.createElement('button');
+    adoptBtn.type = 'button';
+    adoptBtn.className = 'btn btn-primary btn-sm';
+    adoptBtn.style.marginTop = '8px';
+    adoptBtn.textContent = 'この候補を採用';
+    adoptBtn.addEventListener('click', () => adoptOnsenCandidate(cand));
+    card.appendChild(adoptBtn);
+
+    wrap.appendChild(card);
+  });
+}
+
+// 採用時：既存入力を上書きする項目があれば、反映前に一覧で警告する
+function adoptOnsenCandidate(cand) {
+  const changes = buildOnsenChanges(cand);
+  if (!changes.length) {
+    showToast('この候補には反映できる項目がありません', 'error');
+    return;
+  }
+  const overwrites = changes.filter(ch => ch.oldVal && ch.oldVal !== ch.newVal);
+  if (!overwrites.length) {
+    applyOnsenChanges(changes);
+    return;
+  }
+  const confirmBox = document.getElementById('ai-import-confirm');
+  confirmBox.textContent = '';
+  confirmBox.className = 'ai-import-warn';
+
+  const title = document.createElement('div');
+  title.textContent = `⚠️ 次の${overwrites.length}項目は入力済みの内容を上書きします。`;
+  confirmBox.appendChild(title);
+
+  const ul = document.createElement('ul');
+  overwrites.forEach(ch => {
+    const li = document.createElement('li');
+    li.textContent = `${ch.label}：「${ch.oldVal}」→「${ch.newVal}」`;
+    ul.appendChild(li);
+  });
+  confirmBox.appendChild(ul);
+
+  const okBtn = document.createElement('button');
+  okBtn.type = 'button';
+  okBtn.className = 'btn btn-primary btn-sm';
+  okBtn.textContent = '上書きして反映する';
+  okBtn.addEventListener('click', () => applyOnsenChanges(changes));
+  confirmBox.appendChild(okBtn);
+
+  confirmBox.style.display = '';
+  okBtn.focus();
+}
+
+function applyOnsenChanges(changes) {
+  changes.forEach(ch => { document.getElementById(ch.id).value = ch.newVal; });
+  closeAiImportModal();
+  onInput(); // 通常の自動保存とプレビュー更新を通す
+  showToast('♨️ AI回答を温泉の入力欄に反映しました');
+}
+
+document.getElementById('ai-onsen-import-btn').addEventListener('click', openAiImportModal);
+document.getElementById('ai-import-cancel').addEventListener('click', closeAiImportModal);
+document.getElementById('ai-import-close').addEventListener('click', closeAiImportModal);
+document.getElementById('ai-import-back').addEventListener('click', () => showAiImportStep('paste'));
+
+document.getElementById('ai-import-parse').addEventListener('click', () => {
+  const text = document.getElementById('ai-import-text').value;
+  if (!text.trim()) {
+    showAiImportError('Claudeの回答を貼り付けてください。');
+    return;
+  }
+  const obj = extractOnsenJson(text);
+  if (!obj) {
+    showAiImportError('回答からJSONデータを見つけられませんでした。Claudeの最後の回答（末尾に```json ...```が付いたもの）を全文コピーして貼り付けてください。');
+    return;
+  }
+  const candidates = obj.candidates.map(sanitizeOnsenCandidate).filter(c => Object.keys(c).length > 0);
+  if (!candidates.length) {
+    showAiImportError('JSONは読めましたが、反映できる温泉情報が含まれていませんでした。');
+    return;
+  }
+  document.getElementById('ai-import-error').style.display = 'none';
+  renderOnsenCandidates(candidates);
+  showAiImportStep('result');
+});
+
+document.getElementById('ai-import-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('ai-import-modal')) closeAiImportModal();
+});
+
+// Escapeで閉じる／Tabフォーカスをモーダル内に閉じ込める
+document.addEventListener('keydown', e => {
+  const overlay = document.getElementById('ai-import-modal');
+  if (!overlay.classList.contains('show')) return;
+  if (e.key === 'Escape') {
+    closeAiImportModal();
+    return;
+  }
+  if (e.key === 'Tab') {
+    const focusables = Array.from(
+      overlay.querySelectorAll('button, input, textarea, select, a[href]')
+    ).filter(el => el.offsetParent !== null);
+    if (!focusables.length) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
+});
+
 // ── Mobile tab switch ──
 function initMobileTabs() {}
 
 document.querySelectorAll('.editor-tab').forEach(tab => {
   tab.addEventListener('click', () => {
-    document.querySelectorAll('.editor-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.editor-tab').forEach(t => {
+      t.classList.remove('active');
+      t.setAttribute('aria-pressed', 'false');
+    });
     tab.classList.add('active');
+    tab.setAttribute('aria-pressed', 'true');
     const showPreview = tab.dataset.tab === 'preview';
     document.getElementById('editor-wrap').classList.toggle('show-preview', showPreview);
     if (showPreview) updatePreview();
@@ -858,6 +1203,7 @@ const existing = loadPlan();
 setFormData(existing?.data || null);
 updatePreview();
 initMobileTabs();
+setSaveStatus('saved');
 </script>
 </body>
 </html>

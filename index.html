@@ -56,12 +56,31 @@
 
 <!-- Delete Confirm Modal -->
 <div class="modal-overlay" id="delete-modal">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="del-title">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="del-title" aria-describedby="del-desc">
     <h2 class="modal-title" id="del-title">🗑 計画書を削除</h2>
-    <p style="font-size:14px;color:var(--mist);">「<span id="del-plan-name"></span>」を削除しますか？この操作は元に戻せません。</p>
+    <p id="del-desc" style="font-size:14px;color:var(--mist);">「<span id="del-plan-name"></span>」を削除しますか？この操作は元に戻せません。</p>
     <div class="modal-actions">
-      <button class="btn btn-outline" id="del-cancel">キャンセル</button>
-      <button class="btn" id="del-confirm" style="background:var(--red);color:#fff;border-color:var(--red);">削除する</button>
+      <button type="button" class="btn btn-outline" id="del-cancel" data-autofocus>キャンセル</button>
+      <button type="button" class="btn" id="del-confirm" style="background:var(--red);color:#fff;border-color:var(--red);">削除する</button>
+    </div>
+  </div>
+</div>
+
+<!-- Import Confirm Modal -->
+<div class="modal-overlay" id="import-modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="import-title" aria-describedby="import-desc">
+    <h2 class="modal-title" id="import-title">📥 インポートの確認</h2>
+    <p id="import-desc" style="font-size:14px;color:var(--mist);margin-bottom:12px;">
+      現在の <strong id="import-current-count">0</strong> 件の計画書を、
+      インポートした <strong id="import-new-count">0</strong> 件で<strong>置き換え</strong>ます。
+      この操作は元に戻せません。
+    </p>
+    <p style="font-size:12px;color:var(--mist);margin-bottom:8px;">
+      置き換え前に「📤 エクスポート」で現在のデータを保存しておくと安全です。
+    </p>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-outline" id="import-cancel" data-autofocus>キャンセル</button>
+      <button type="button" class="btn" id="import-confirm" style="background:var(--red);color:#fff;border-color:var(--red);">置き換える</button>
     </div>
   </div>
 </div>
@@ -97,11 +116,47 @@ function showToast(msg, type = 'success') {
   setTimeout(() => { t.className = 'toast'; }, 3000);
 }
 
+// モーダル開閉（フォーカス管理付き：開いたら中へ、閉じたら元のボタンへ戻す）
+let modalLastFocused = null;
+
 function openModal(id) {
-  document.getElementById(id).classList.add('show');
+  modalLastFocused = document.activeElement;
+  const overlay = document.getElementById(id);
+  overlay.classList.add('show');
+  const target = overlay.querySelector('[data-autofocus]') || overlay.querySelector('button, input, textarea');
+  if (target) target.focus();
 }
 function closeModal(id) {
   document.getElementById(id).classList.remove('show');
+  if (modalLastFocused && document.contains(modalLastFocused)) modalLastFocused.focus();
+  modalLastFocused = null;
+}
+
+// Escapeで開いているモーダルを閉じる（このページのモーダルはすべて安全に閉じられる）
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    const open = document.querySelector('.modal-overlay.show');
+    if (open) closeModal(open.id);
+  }
+  // Tabフォーカスをモーダル内に閉じ込める
+  if (e.key === 'Tab') {
+    const open = document.querySelector('.modal-overlay.show');
+    if (!open) return;
+    const focusables = open.querySelectorAll('button, input, textarea, select, a[href]');
+    if (!focusables.length) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
+});
+
+// URLがhttp/httpsのときだけ安全とみなす（javascript:等を弾く）
+function isSafeHttpUrl(url) {
+  try {
+    const u = new URL(String(url));
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch { return false; }
 }
 
 function formatDate(iso) {
@@ -120,7 +175,7 @@ function renderList() {
         <div class="empty-state-icon">🏔</div>
         <div class="empty-state-title">計画書がまだありません</div>
         <p class="empty-state-desc">「＋ 新しい計画書」から作成を始めましょう</p>
-        <button class="btn btn-primary" onclick="createNew()">＋ 新しい計画書を作る</button>
+        <button type="button" class="btn btn-primary" data-action="new">＋ 新しい計画書を作る</button>
       </div>`;
     return;
   }
@@ -152,12 +207,12 @@ function planCard(p) {
         </div>
         <p class="plan-meta">${escHtml(dateStr)} · ${escHtml(String(members))} 名</p>
         <div class="plan-card-actions">
-          <button class="btn btn-ghost" onclick="editPlan('${p.id}')">✏️ 編集</button>
-          <button class="btn btn-ghost" onclick="duplicatePlan('${p.id}')">📋 複製</button>
+          <button type="button" class="btn btn-ghost" data-action="edit" data-id="${escHtml(p.id)}">✏️ 編集</button>
+          <button type="button" class="btn btn-ghost" data-action="duplicate" data-id="${escHtml(p.id)}">📋 複製</button>
           ${publicUrl
-            ? `<button class="btn btn-ghost" onclick="copyUrl('${escHtml(publicUrl)}')">🔗 URLコピー</button>`
+            ? `<button type="button" class="btn btn-ghost" data-action="copy-url" data-id="${escHtml(p.id)}">🔗 URLコピー</button>`
             : ''}
-          <button class="btn btn-danger" onclick="confirmDelete('${p.id}', '${escHtml(title)}')">🗑</button>
+          <button type="button" class="btn btn-danger" data-action="delete" data-id="${escHtml(p.id)}" aria-label="「${escHtml(title)}」を削除">🗑</button>
         </div>
       </div>
     </div>`;
@@ -209,6 +264,10 @@ function duplicatePlan(id) {
 }
 
 async function copyUrl(url) {
+  if (!isSafeHttpUrl(url)) {
+    showToast('公開URLの形式が正しくありません', 'error');
+    return;
+  }
   const ok = await Publisher.copyToClipboard(url);
   showToast(ok ? '🔗 URLをコピーしました' : 'コピーに失敗しました。URLを手動でコピーしてください。', ok ? 'success' : 'error');
 }
@@ -220,6 +279,27 @@ function confirmDelete(id, name) {
   document.getElementById('del-plan-name').textContent = name;
   openModal('delete-modal');
 }
+
+// 一覧のボタンはイベント委譲で処理する。
+// 計画IDや山行名をonclick属性のコード文字列に埋め込まない（引用符入りの山行名で壊れるため）
+document.getElementById('plan-list').addEventListener('click', e => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const action = btn.dataset.action;
+  if (action === 'new') { createNew(); return; }
+  const id = btn.dataset.id;
+  const plan = loadPlans().find(p => p.id === id);
+  if (!plan) return;
+  if (action === 'edit') {
+    editPlan(id);
+  } else if (action === 'duplicate') {
+    duplicatePlan(id);
+  } else if (action === 'copy-url') {
+    copyUrl(plan.publicUrl || '');
+  } else if (action === 'delete') {
+    confirmDelete(id, plan.data?.basic?.title || '無題の計画書');
+  }
+});
 
 document.getElementById('del-confirm').addEventListener('click', () => {
   if (!deleteTargetId) return;
@@ -255,23 +335,73 @@ document.getElementById('import-btn').addEventListener('click', () => {
   document.getElementById('import-file').click();
 });
 
+// インポートしたデータの最低限の検証（配列であること・各計画にIDがあること）
+function validateImportedPlans(plans) {
+  if (!Array.isArray(plans)) {
+    return { ok: false, error: 'ファイルの形式が正しくありません（計画書のリストではありません）' };
+  }
+  for (const p of plans) {
+    if (!p || typeof p !== 'object' || Array.isArray(p)) {
+      return { ok: false, error: 'ファイルの形式が正しくありません（計画書でない項目が含まれています）' };
+    }
+    if (typeof p.id !== 'string' || !p.id) {
+      return { ok: false, error: 'ファイルの形式が正しくありません（IDのない計画書が含まれています）' };
+    }
+    if (p.data != null && (typeof p.data !== 'object' || Array.isArray(p.data))) {
+      return { ok: false, error: 'ファイルの形式が正しくありません（計画内容の形式が不正です）' };
+    }
+  }
+  return { ok: true };
+}
+
+let pendingImportPlans = null;
+
 document.getElementById('import-file').addEventListener('change', e => {
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
   reader.onload = ev => {
+    let plans;
     try {
-      const plans = JSON.parse(ev.target.result);
-      if (!Array.isArray(plans)) throw new Error('invalid');
-      savePlans(plans);
-      renderList();
-      showToast('📥 インポートしました');
+      plans = JSON.parse(ev.target.result);
     } catch {
-      showToast('ファイルの形式が正しくありません', 'error');
+      showToast('ファイルの形式が正しくありません（JSONとして読めません）', 'error');
+      e.target.value = '';
+      return;
     }
+    const check = validateImportedPlans(plans);
+    if (!check.ok) {
+      showToast(check.error, 'error');
+      e.target.value = '';
+      return;
+    }
+    // すぐ置き換えず、件数を示して確認してから実行する
+    pendingImportPlans = plans;
+    document.getElementById('import-current-count').textContent = String(loadPlans().length);
+    document.getElementById('import-new-count').textContent = String(plans.length);
+    openModal('import-modal');
     e.target.value = '';
   };
   reader.readAsText(file);
+});
+
+document.getElementById('import-confirm').addEventListener('click', () => {
+  if (!pendingImportPlans) return;
+  savePlans(pendingImportPlans);
+  pendingImportPlans = null;
+  closeModal('import-modal');
+  renderList();
+  showToast('📥 インポートしました');
+});
+document.getElementById('import-cancel').addEventListener('click', () => {
+  pendingImportPlans = null;
+  closeModal('import-modal');
+});
+document.getElementById('import-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('import-modal')) {
+    pendingImportPlans = null;
+    closeModal('import-modal');
+  }
 });
 
 // Settings
