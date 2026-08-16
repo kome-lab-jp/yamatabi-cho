@@ -23,7 +23,23 @@ const Template = {
     return `<a href="${safeUrl}" target="_blank" rel="noopener">${safeLabel}</a>`;
   },
 
+  // 公開URLからslugを復元する（plan.slug を持たない過去の計画の救済用）
+  _slugFromPublicUrl(url) {
+    const m = String(url || '').match(/\/plans\/([^/]+)\.html$/);
+    if (!m) return '';
+    let s = m[1];
+    try { s = decodeURIComponent(s); } catch { /* エンコードされていない場合はそのまま */ }
+    // パス区切りや先頭ドットを含むものは安全でないので使わない
+    return /[/\\]/.test(s) || s.startsWith('.') ? '' : s;
+  },
+
+  // 一度公開した計画は同じslug（＝同じ公開URL）を使い回す。
+  // 毎回新しいslugを作ると再公開のたびに別ファイル・別URLが増え、
+  // 古い内容の計画書が公開されたまま残ってしまうため。
   slug(plan) {
+    const existing = plan.slug || this._slugFromPublicUrl(plan.publicUrl);
+    if (existing) return existing;
+
     const title = (plan.data.basic?.title || 'plan')
       .replace(/[^\w぀-ヿ一-鿿]/g, '-')
       .replace(/-+/g, '-')

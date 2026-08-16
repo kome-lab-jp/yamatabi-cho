@@ -1,3 +1,5 @@
 .DS_Store
 Thumbs.db
 *.log
+引継ぎ*.md
+.claude/settings.local.json

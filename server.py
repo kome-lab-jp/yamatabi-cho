@@ -53,11 +53,14 @@ class Handler(SimpleHTTPRequestHandler):
 
         plans_dir = ROOT / 'plans'
         plans_dir.mkdir(exist_ok=True)
-        (plans_dir / f'{slug}.html').write_text(html, encoding='utf-8')
+        target = plans_dir / f'{slug}.html'
+        # 既存ファイルなら「更新」、無ければ「追加」。コミットログで区別できるようにする
+        action = '更新' if target.exists() else '追加'
+        target.write_text(html, encoding='utf-8')
 
         commands = [
             ['git', 'add', 'plans/'],
-            ['git', 'commit', '-m', f'山旅帖: 計画書を追加 ({slug})'],
+            ['git', 'commit', '-m', f'山旅帖: 計画書を{action} ({slug})'],
             ['git', 'push'],
         ]
         for cmd in commands:

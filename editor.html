@@ -93,8 +93,10 @@ body { overflow: hidden; }
         </div>
         <div class="form-group">
           <label class="form-label" for="basic-tripType">山行種別</label>
-          <input class="form-input" id="basic-tripType" list="dl-tripType" name="basic.tripType" placeholder="選択または入力">
-          <datalist id="dl-tripType"></datalist>
+          <select class="form-input" id="basic-tripType" name="basic.tripType">
+            <option value="">選択してください</option>
+          </select>
+          <input class="form-input mt-8" id="basic-tripType-other" type="text" placeholder="その他の山行種別を入力" hidden>
         </div>
         <div class="form-group">
           <label class="form-label" for="basic-routeMemo">工程メモ</label>
@@ -510,6 +512,28 @@ function refreshDatalist(name) {
 
 function refreshAllDatalists() {
   Object.keys(COMBO_DEFAULTS).forEach(refreshDatalist);
+  refreshTripTypeSelect();
+}
+
+function refreshTripTypeSelect() {
+  const select = document.getElementById('basic-tripType');
+  if (!select) return;
+  const current = select.value;
+  const custom = loadComboCustom().tripType || [];
+  const defaults = COMBO_DEFAULTS.tripType || [];
+  const all = [...defaults, ...custom.filter(v => !defaults.includes(v))];
+  select.innerHTML = '<option value="">選択してください</option>'
+    + all.map(v => `<option value="${Template.esc(v)}">${Template.esc(v)}</option>`).join('')
+    + '<option value="__other__">その他</option>';
+  if ([...select.options].some(option => option.value === current)) select.value = current;
+}
+
+function updateTripTypeOtherVisibility() {
+  const select = document.getElementById('basic-tripType');
+  const other = document.getElementById('basic-tripType-other');
+  const show = select.value === '__other__';
+  other.hidden = !show;
+  if (!show) other.value = '';
 }
 
 // ── Dynamic day helpers ──
@@ -638,6 +662,10 @@ function getFormData() {
     if (parts.length === 2) data[parts[0]][parts[1]] = el.value;
   });
 
+  if (data.basic.tripType === '__other__') {
+    data.basic.tripType = document.getElementById('basic-tripType-other').value.trim();
+  }
+
   return data;
 }
 
@@ -656,6 +684,14 @@ function setFormData(data) {
       document.getElementById('move-datetime').dataset.manual = '1';
     }
   }
+
+  const savedTripType = data?.basic?.tripType || '';
+  const tripTypeSelect = document.getElementById('basic-tripType');
+  if (savedTripType && ![...tripTypeSelect.options].some(option => option.value === savedTripType)) {
+    tripTypeSelect.value = '__other__';
+    document.getElementById('basic-tripType-other').value = savedTripType;
+  }
+  updateTripTypeOtherVisibility();
 
   // Food days
   document.getElementById('food-days-container').innerHTML = '';
@@ -806,13 +842,24 @@ document.querySelectorAll('.form-input, .form-textarea').forEach(el => {
 
 // ── Combobox change listeners ──
 [
-  { id: 'basic-tripType', name: 'tripType' },
   { id: 'move-place',     name: 'place' },
   { id: 'move-car',       name: 'car' },
 ].forEach(({ id, name }) => {
   const el = document.getElementById(id);
   if (!el) return;
   el.addEventListener('change', () => { addComboOption(name, el.value); onInput(); });
+});
+
+document.getElementById('basic-tripType').addEventListener('change', () => {
+  updateTripTypeOtherVisibility();
+  if (document.getElementById('basic-tripType').value === '__other__') {
+    document.getElementById('basic-tripType-other').focus();
+  }
+  onInput();
+});
+
+document.getElementById('basic-tripType-other').addEventListener('change', e => {
+  addComboOption('tripType', e.target.value);
 });
 
 // ── 出発日 → 集合日時 自動反映 ──
@@ -837,9 +884,14 @@ document.getElementById('publish-btn').addEventListener('click', () => {
     const plans = loadPlans();
     const idx = plans.findIndex(p => p.id === planId);
     if (idx >= 0) {
+      const isUpdate = Boolean(plans[idx].slug);
       plans[idx].status = 'published';
+      // slugを保存しておき、次回以降の公開でも同じURLを上書き更新する
+      plans[idx].slug = slug;
       plans[idx].publicUrl = publicUrl;
       savePlansArr(plans);
+      showToast(`🚀 ${isUpdate ? '更新' : '公開'}しました。1〜2分後に公開URLで確認できます。`);
+      return;
     }
     showToast('🚀 公開しました。1〜2分後に公開URLで確認できます。');
   });

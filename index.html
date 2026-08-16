@@ -253,6 +253,8 @@ function duplicatePlan(id) {
   copy.id = newId;
   copy.status = 'draft';
   copy.publicUrl = '';
+  // 複製元のURLを上書きしてしまわないよう、slugは引き継がない
+  delete copy.slug;
   copy.updatedAt = new Date().toISOString();
   if (copy.data?.basic?.title) {
     copy.data.basic.title = copy.data.basic.title + '（コピー）';
